@@ -1,6 +1,6 @@
 import numpy as np
 from atomica.potential import relax
-from atomica.search import random_cluster, random_search, cut_and_splice, mutate, genetic_search
+from atomica.search import random_cluster, random_search, cut_and_splice, mutate, genetic_search, active_learning_search
 
 
 def test_random_cluster_shape_and_separation():
@@ -33,6 +33,14 @@ def test_cut_and_splice_preserves_atom_count():
 def test_genetic_search_history_valid():
     hist, best = genetic_search(2, budget=20, seed=1, relax=relax)
     assert len(hist) == 20
+    energies = [h[1] for h in hist]
+    assert all(energies[i] >= energies[i + 1] - 1e-9 for i in range(len(energies) - 1))
+    assert energies[-1] < -0.9
+
+
+def test_active_learning_history_valid():
+    hist, best = active_learning_search(2, budget=18, seed=2, relax=relax)
+    assert len(hist) == 18
     energies = [h[1] for h in hist]
     assert all(energies[i] >= energies[i + 1] - 1e-9 for i in range(len(energies) - 1))
     assert energies[-1] < -0.9

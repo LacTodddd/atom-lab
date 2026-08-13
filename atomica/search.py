@@ -1,4 +1,6 @@
 import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+from atomica.descriptor import distance_histogram
 
 
 def random_cluster(n: int, rng, min_sep: float = 0.8) -> np.ndarray:
@@ -75,5 +77,39 @@ def genetic_search(n, budget, seed, relax, pop_size=10):
         pop.append((e, x))
         pop.sort(key=lambda t: t[0])
         pop = pop[:pop_size]                                # keep the fittest
+
+    return history, best_x
+
+
+def active_learning_search(n, budget, seed, relax, n_init=10, pool=100, k_acq=1.0):
+    rng = np.random.default_rng(seed)
+    X, y = [], []
+    best_e, best_x = np.inf, None
+    history = []
+    used = 0
+
+    def record(x, e):
+        nonlocal best_e, best_x, used
+        used += 1
+        X.append(distance_histogram(x))
+        y.append(e)
+        if e < best_e:
+            best_e, best_x = e, x
+        history.append((used, best_e))
+
+    for _ in range(min(n_init, budget)):
+        x, e = relax(random_cluster(n, rng))
+        record(x, e)
+
+    while used < budget:
+        model = RandomForestRegressor(n_estimators=100, random_state=seed)
+        model.fit(np.array(X), np.array(y))
+        cands = [random_cluster(n, rng) for _ in range(pool // 2)]
+        cands += [mutate(best_x, rng) for _ in range(pool - pool // 2)]
+        D = np.array([distance_histogram(c) for c in cands])
+        preds = np.stack([est.predict(D) for est in model.estimators_])  # (n_trees, pool)
+        acq = preds.mean(0) - k_acq * preds.std(0)         # lower-confidence-bound (minimizing energy)
+        x, e = relax(cands[int(np.argmin(acq))])
+        record(x, e)
 
     return history, best_x
