@@ -24,3 +24,56 @@ def random_search(n, budget, seed, relax):
             best_e, best_x = e, x
         history.append((i + 1, best_e))
     return history, best_x
+
+
+def cut_and_splice(a, b, rng):
+    n = len(a)
+    a = a - a.mean(0)
+    b = b - b.mean(0)
+    normal = rng.normal(size=3)
+    normal /= np.linalg.norm(normal)
+    a_sorted = a[np.argsort(a @ normal)]
+    b_sorted = b[np.argsort(b @ normal)]
+    k = int(rng.integers(1, n))
+    return np.vstack([a_sorted[:k], b_sorted[k:]])
+
+
+def mutate(x, rng, sigma=0.3, frac=0.3):
+    x = x.copy()
+    m = rng.random(len(x)) < frac
+    if m.any():
+        x[m] += rng.normal(scale=sigma, size=(int(m.sum()), 3))
+    return x
+
+
+def genetic_search(n, budget, seed, relax, pop_size=10):
+    rng = np.random.default_rng(seed)
+    used = 0
+    history = []
+    pop = []  # list of (energy, positions)
+    best_e, best_x = np.inf, None
+
+    def record(e, x):
+        nonlocal best_e, best_x, used
+        used += 1
+        if e < best_e:
+            best_e, best_x = e, x
+        history.append((used, best_e))
+
+    for _ in range(min(pop_size, budget)):
+        x, e = relax(random_cluster(n, rng))
+        pop.append((e, x))
+        record(e, x)
+
+    while used < budget:
+        pop.sort(key=lambda t: t[0])
+        parents = pop[: max(2, pop_size // 2)]
+        (_, pa), (_, pb) = (parents[int(rng.integers(len(parents)))] for _ in range(2))
+        child = mutate(cut_and_splice(pa, pb, rng), rng)
+        x, e = relax(child)
+        record(e, x)
+        pop.append((e, x))
+        pop.sort(key=lambda t: t[0])
+        pop = pop[:pop_size]                                # keep the fittest
+
+    return history, best_x
