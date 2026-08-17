@@ -44,3 +44,16 @@ def test_active_learning_history_valid():
     energies = [h[1] for h in hist]
     assert all(energies[i] >= energies[i + 1] - 1e-9 for i in range(len(energies) - 1))
     assert energies[-1] < -0.9
+
+
+def test_active_learning_calls_relax_exactly_budget_times():
+    count = 0
+
+    def counting_relax(positions):
+        nonlocal count
+        count += 1
+        return relax(positions)
+
+    budget = 15
+    active_learning_search(2, budget=budget, seed=0, relax=counting_relax)
+    assert count == budget

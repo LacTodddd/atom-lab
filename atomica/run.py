@@ -1,6 +1,6 @@
 import argparse
 from atomica.benchmark import run_benchmark, METHODS
-from atomica.plot import make_figures
+from atomica.plot import make_figures, write_metrics
 
 def main(argv=None):
     p = argparse.ArgumentParser(description="ATOMICA LJ-cluster search benchmark")
@@ -13,6 +13,7 @@ def main(argv=None):
     methods = {name: METHODS[name] for name in a.methods}
     run_benchmark(a.n, list(range(a.seeds)), a.budget, methods=methods, out_dir=a.out)
     make_figures(results_dir=a.out, out_dir=a.out)
+    write_metrics(a.out, a.out)
 
 if __name__ == "__main__":
     main()
