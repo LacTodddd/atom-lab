@@ -1,0 +1,27 @@
+{
+  "n": 12,
+  "known_min": -44.36847087342027,
+  "methods": {
+    "active": {
+      "mean_best": -44.36847087342027,
+      "best": -44.36847087342027,
+      "success_rate": 1.0,
+      "evals_reached": 5,
+      "mean_evals_to_target": 17.2
+    },
+    "genetic": {
+      "mean_best": -44.36847087342027,
+      "best": -44.36847087342027,
+      "success_rate": 1.0,
+      "evals_reached": 5,
+      "mean_evals_to_target": 26.8
+    },
+    "random": {
+      "mean_best": -44.2960399054963,
+      "best": -44.36847087342027,
+      "success_rate": 0.4,
+      "evals_reached": 2,
+      "mean_evals_to_target": 28.5
+    }
+  }
+}

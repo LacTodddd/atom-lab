@@ -79,6 +79,56 @@ a surrogate-screened basin-hopping scheme — is future work, not a Slice 1 goal
 
 ---
 
+## P2 — Cu-Au alloy ordering (real MACE potential)
+
+P2 swaps the toy LJ potential for a real ML interatomic potential
+(**MACE-MP-0**, `mace-torch`) and asks the same cheat-proof question on a real
+materials problem: on a fixed 12-site Cu-Au FCC lattice (6 Au, 6 Cu —
+composition fixed, only the *arrangement* varies), can AI-guided search find
+the lowest-energy Cu/Au ordering faster than classical baselines, under equal
+MACE-evaluation budget?
+
+Because the site count (C(12,6) = 924 configurations) is small enough,
+**ground truth is brute-forced** with the real MACE potential rather than
+taken from a literature table — every one of the 924 orderings is evaluated
+once and cached (`results/alloy_ground_truth.json`).
+
+Run it:
+
+```bash
+python3 -m atomica.run_alloy --budget 100 --seeds 5 --out results
+```
+
+### Result
+
+Brute-forced global minimum: **−44.36847 eV**, config (Au on sites)
+`[0, 1, 4, 5, 8, 9]` out of 924 evaluated configurations.
+
+| Method | mean best (5 seeds) | best of 5 seeds | success rate (hit ground state) | mean evals-to-target |
+|--------|---------------------:|-----------------:|:--------------------------------:|----------------------:|
+| **Active-learning** | −44.36847 | −44.36847 | 5/5 (100%) | **17.2** |
+| **Genetic** | −44.36847 | −44.36847 | 5/5 (100%) | 26.8 |
+| Random | −44.29604 | −44.36847 | 2/5 (40%) | 28.5 (of the 2 that hit it) |
+
+![Cu-Au N12 convergence](results/convergence_N12.png)
+
+**Verdict: active-learning wins here.** Under equal budget it reached the
+brute-forced global minimum in every seed, and did so in the fewest MACE
+evaluations on average (17.2 vs Genetic's 26.8). Genetic also converges
+reliably (5/5) but slower. Random only reaches the true ground state in 2 of 5
+seeds. This is the opposite of the Slice-1 LJ-38 result (where active-learning
+lost) — on this real-potential, small-search-space problem, the RandomForest
+surrogate over the SRO descriptor gives a genuine, honestly-measured speedup.
+
+Bonus physics note: the ground-state ordering is a pure **L1₀-type layering**
+— every Au atom sits on one (100) plane (x = 0) and every Cu atom on the
+adjacent (100) plane (x = a/2), i.e. alternating pure Cu/Au planes rather than
+a mixed arrangement. That matches the real CuAu-I ordered intermetallic
+structure, which is a reassuring physical sanity check on the MACE potential.
+
+See [`docs/superpowers/specs/2026-08-17-atomica-p2-alloy-ordering-design.md`](docs/superpowers/specs/2026-08-17-atomica-p2-alloy-ordering-design.md)
+for the full P2 design spec.
+
 ## Install
 
 ```bash
@@ -119,8 +169,11 @@ atomica/
 ├── descriptor.py    # pairwise-distance histogram (permutation/rotation/translation invariant)
 ├── search.py        # random / genetic / active_learning — one shared signature, one shared budget
 ├── benchmark.py     # runs method × seed × N, logs reproducible per-run JSON
-├── plot.py          # convergence curves + success-rate / evals-to-target metrics
-└── run.py           # CLI entry point
+├── plot.py          # convergence curves + success-rate / evals-to-target metrics (LJ + alloy, shared)
+├── run.py           # CLI entry point (P1 — LJ clusters)
+├── alloy.py         # MACE-MP-0 evaluate on a fixed Cu-Au FCC lattice, SRO descriptor, brute-force ground truth
+├── alloy_search.py  # random / genetic / active_learning over Au/Cu site orderings (composition-preserving)
+└── run_alloy.py     # CLI entry point (P2 — Cu-Au alloy ordering)
 ```
 
 ## Roadmap

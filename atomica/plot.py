@@ -21,7 +21,7 @@ def evals_to_target(history, target, tol=0.01):
 
 def _load(results_dir):
     runs = defaultdict(list)  # (n, method) -> list of run dicts
-    for p in Path(results_dir).glob("*.json"):
+    for p in Path(results_dir).glob("*_seed*.json"):  # run records only; skips ground-truth/metrics json sharing this dir
         d = json.loads(p.read_text())
         runs[(d["n"], d["method"])].append(d)
     return runs
