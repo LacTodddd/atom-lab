@@ -30,3 +30,23 @@ def evaluate(config, n_sites=N_SITES):
     at.symbols = config_symbols(config, n_sites)
     at.calc = _calc()
     return float(at.get_potential_energy())
+
+_NBR = None  # directed (i, j) first-nearest-neighbour index arrays for the fixed lattice
+def _neighbours(cutoff=2.9):
+    # FCC first-NN distance is a/sqrt(2) ~= 2.72 A; 2.9 A captures first NN only (second is 3.85).
+    global _NBR
+    if _NBR is None:
+        from ase.neighborlist import neighbor_list
+        i, j = neighbor_list("ij", build_lattice(), cutoff)
+        _NBR = (np.asarray(i), np.asarray(j))
+    return _NBR
+
+def sro_descriptor(config, n_sites=N_SITES):
+    is_au = np.zeros(n_sites, dtype=bool)
+    is_au[list(config)] = True
+    i, j = _neighbours()
+    ai, aj = is_au[i], is_au[j]
+    # directed bonds: each undirected bond counted twice -> divide by 2
+    counts = np.array([np.sum(ai & aj), np.sum(ai ^ aj), np.sum(~ai & ~aj)], dtype=float) / 2.0
+    total = counts.sum()
+    return counts / total if total > 0 else counts

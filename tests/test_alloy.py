@@ -1,5 +1,5 @@
 import numpy as np
-from atomica.alloy import build_lattice, config_symbols, evaluate
+from atomica.alloy import build_lattice, config_symbols, evaluate, sro_descriptor
 
 def test_lattice_has_12_sites():
     at = build_lattice()
@@ -18,3 +18,20 @@ def test_evaluate_is_sane_and_symmetry_consistent():
     # symmetry-equivalent config and must give (near-)equal energy.
     e_shift = evaluate((4, 5, 6, 7, 8, 9))
     assert abs(e - e_shift) < 1e-3
+
+def test_sro_fixed_length_and_normalized():
+    d = sro_descriptor((0, 1, 2, 3, 4, 5))
+    assert d.shape == (3,)
+    assert abs(d.sum() - 1.0) < 1e-9
+
+def test_sro_symmetry_equivalent_configs_match():
+    # Period shift is a lattice symmetry -> identical SRO.
+    a = sro_descriptor((0, 1, 2, 3, 4, 5))
+    b = sro_descriptor((4, 5, 6, 7, 8, 9))
+    assert np.allclose(a, b)
+
+def test_sro_all_au_pairs_only_auau():
+    # If every neighbour bond is Au-Au (all 12 sites Au — not composition-valid, but a pure
+    # descriptor check), Au-Cu and Cu-Cu bins are zero.
+    d = sro_descriptor(tuple(range(12)))
+    assert d[1] == 0.0 and d[2] == 0.0 and abs(d[0] - 1.0) < 1e-9
