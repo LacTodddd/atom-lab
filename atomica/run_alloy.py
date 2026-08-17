@@ -3,7 +3,7 @@ from pathlib import Path
 from atomica.alloy import evaluate, brute_force_min, N_SITES, N_AU
 from atomica.alloy_search import random_search, genetic_search, active_learning_search
 from atomica.benchmark import run_alloy_benchmark
-from atomica.plot import make_figures, write_metrics
+from atomica.plot import make_figures, write_metrics, KNOWN_MINIMA
 
 METHODS = {"random": random_search, "genetic": genetic_search, "active": active_learning_search}
 
@@ -21,7 +21,7 @@ def main(argv=None):
     methods = {name: METHODS[name] for name in a.methods}
     run_alloy_benchmark(methods, list(range(a.seeds)), a.budget,
                         evaluate, N_SITES, N_AU, out_dir=a.out)
-    known = {N_SITES: min_e}
+    known = {**KNOWN_MINIMA, N_SITES: min_e}
     make_figures(results_dir=a.out, out_dir=a.out, known_minima=known)
     write_metrics(results_dir=a.out, out_dir=a.out, known_minima=known)
 
