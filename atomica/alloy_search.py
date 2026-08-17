@@ -1,4 +1,6 @@
 import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+from atomica.alloy import sro_descriptor
 
 def random_config(n_sites, n_au, rng):
     return tuple(sorted(int(x) for x in rng.choice(n_sites, n_au, replace=False)))
@@ -63,5 +65,39 @@ def genetic_search(evaluate, n_sites, n_au, budget, seed, pop_size=10):
         pop.append((e, child))
         pop.sort(key=lambda t: t[0])
         pop = pop[:pop_size]
+
+    return history, best_c
+
+def active_learning_search(evaluate, n_sites, n_au, budget, seed,
+                           n_init=10, pool=80, k_acq=1.0):
+    rng = np.random.default_rng(seed)
+    X, y = [], []
+    best_e, best_c = np.inf, None
+    history = []
+    used = 0
+
+    def record(c, e):
+        nonlocal best_e, best_c, used
+        used += 1
+        X.append(sro_descriptor(c, n_sites))
+        y.append(e)
+        if e < best_e:
+            best_e, best_c = e, c
+        history.append((used, best_e))
+
+    for _ in range(min(n_init, budget)):
+        c = random_config(n_sites, n_au, rng)
+        record(c, evaluate(c))
+
+    while used < budget:
+        model = RandomForestRegressor(n_estimators=100, random_state=seed)
+        model.fit(np.array(X), np.array(y))
+        cands = [random_config(n_sites, n_au, rng) for _ in range(pool // 2)]
+        cands += [mutate_swap(best_c, n_sites, rng) for _ in range(pool - pool // 2)]
+        D = np.array([sro_descriptor(c, n_sites) for c in cands])
+        preds = np.stack([est.predict(D) for est in model.estimators_])  # (trees, pool)
+        acq = preds.mean(0) - k_acq * preds.std(0)   # lower-confidence-bound (minimizing)
+        pick = cands[int(np.argmin(acq))]
+        record(pick, evaluate(pick))
 
     return history, best_c

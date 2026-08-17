@@ -1,5 +1,5 @@
 import numpy as np
-from atomica.alloy_search import random_config, mutate_swap, random_search, crossover, genetic_search
+from atomica.alloy_search import random_config, mutate_swap, random_search, crossover, genetic_search, active_learning_search
 
 def _fake(config, n_sites=12):
     return float(sum(config))  # deterministic, minimized by choosing the lowest indices
@@ -38,3 +38,18 @@ def test_genetic_search_history_valid():
     energies = [h[1] for h in hist]
     assert all(energies[i] >= energies[i + 1] - 1e-9 for i in range(len(energies) - 1))
     assert len(set(best)) == 6
+
+def test_active_learning_history_valid():
+    hist, best = active_learning_search(_fake, 12, 6, budget=20, seed=2)
+    assert len(hist) == 20
+    energies = [h[1] for h in hist]
+    assert all(energies[i] >= energies[i + 1] - 1e-9 for i in range(len(energies) - 1))
+    assert len(set(best)) == 6
+
+def test_active_learning_calls_evaluate_exactly_budget():
+    calls = {"n": 0}
+    def counting(config, n_sites=12):
+        calls["n"] += 1
+        return _fake(config)
+    active_learning_search(counting, 12, 6, budget=18, seed=0)
+    assert calls["n"] == 18  # surrogate predictions cost no budget
