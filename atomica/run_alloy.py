@@ -16,13 +16,14 @@ def main(argv=None):
     a = p.parse_args(argv)
 
     gt_path = Path(a.out) / "alloy_ground_truth.json"
-    min_e, best_cfg, _ = brute_force_min(evaluate, N_SITES, N_AU, cache_path=gt_path)
+    min_e, _, _ = brute_force_min(evaluate, N_SITES, N_AU, cache_path=gt_path)
 
     methods = {name: METHODS[name] for name in a.methods}
     run_alloy_benchmark(methods, list(range(a.seeds)), a.budget,
                         evaluate, N_SITES, N_AU, out_dir=a.out)
     known = {**KNOWN_MINIMA, N_SITES: min_e}
-    make_figures(results_dir=a.out, out_dir=a.out, known_minima=known)
+    make_figures(results_dir=a.out, out_dir=a.out, known_minima=known,
+                 title_fmt="Cu-Au {n}-site ordering", xlabel="MACE evaluations")
     write_metrics(results_dir=a.out, out_dir=a.out, known_minima=known)
 
 if __name__ == "__main__":

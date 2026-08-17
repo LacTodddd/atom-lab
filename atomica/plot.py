@@ -61,7 +61,8 @@ def write_metrics(results_dir="results", out_dir="results", tol=0.01, known_mini
         written.append(path)
     return written
 
-def make_figures(results_dir="results", out_dir="results", known_minima=None):
+def make_figures(results_dir="results", out_dir="results", known_minima=None,
+                  title_fmt="LJ-{n}", xlabel="relaxations"):
     km = KNOWN_MINIMA if known_minima is None else known_minima
     runs = _load(results_dir)
     ns = sorted({n for (n, _) in runs})
@@ -79,7 +80,7 @@ def make_figures(results_dir="results", out_dir="results", known_minima=None):
             plt.fill_between(x, mean - std, mean + std, alpha=0.2)
         if n in km:
             plt.axhline(km[n], ls="--", color="k", label="global min")
-        plt.xlabel("relaxations"); plt.ylabel("best energy"); plt.title(f"LJ-{n}"); plt.legend()
+        plt.xlabel(xlabel); plt.ylabel("best energy"); plt.title(title_fmt.format(n=n)); plt.legend()
         path = str(Path(out_dir) / f"convergence_N{n}.png")
         plt.savefig(path, dpi=120, bbox_inches="tight"); plt.close()
         written.append(path)

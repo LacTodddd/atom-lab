@@ -99,6 +99,10 @@ Run it:
 python3 -m atomica.run_alloy --budget 100 --seeds 5 --out results
 ```
 
+> Note: `run.py` (LJ) and `run_alloy.py` (alloy) both write to `results/` by
+> default. Run them into separate directories (e.g. `--out results/alloy`) if
+> you keep both, otherwise each regenerates the other's figures.
+
 ### Result
 
 Brute-forced global minimum: **−44.36847 eV**, config (Au on sites)
