@@ -52,3 +52,20 @@ def test_make_figures_accepts_known_minima_override(tmp_path):
          "history": [[1, -1.0], [2, -2.0]], "best_energy": -2.0, "best_config": [0,1,2,3,4,5]}))
     out = make_figures(results_dir=tmp_path, out_dir=tmp_path, known_minima={12: -2.5})
     assert out  # a PNG path was produced
+
+
+def test_write_metrics_known_minima_override_changes_success_rate(tmp_path):
+    n = 13
+    runs_dir = tmp_path / "runs"
+    out_dir = tmp_path / "out"
+    runs_dir.mkdir()
+    out_dir.mkdir()
+    _write_run(runs_dir, "m", 0, n, [[1, -50.0]])
+
+    write_metrics(results_dir=str(runs_dir), out_dir=str(out_dir))
+    default_metrics = json.loads((out_dir / f"metrics_N{n}.json").read_text())
+    assert default_metrics["methods"]["m"]["success_rate"] == 1.0  # -50 <= KNOWN_MINIMA[13] + tol
+
+    write_metrics(results_dir=str(runs_dir), out_dir=str(out_dir), known_minima={n: -100.0})
+    overridden_metrics = json.loads((out_dir / f"metrics_N{n}.json").read_text())
+    assert overridden_metrics["methods"]["m"]["success_rate"] == 0.0  # -50 not <= -100 + tol
