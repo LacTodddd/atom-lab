@@ -26,7 +26,8 @@ def _load(results_dir):
         runs[(d["n"], d["method"])].append(d)
     return runs
 
-def write_metrics(results_dir="results", out_dir="results", tol=0.01):
+def write_metrics(results_dir="results", out_dir="results", tol=0.01, known_minima=None):
+    km = KNOWN_MINIMA if known_minima is None else known_minima
     runs = _load(results_dir)
     ns = sorted({n for (n, _) in runs})
     written = []
@@ -40,8 +41,8 @@ def write_metrics(results_dir="results", out_dir="results", tol=0.01):
                 "mean_best": float(np.mean(bests)),
                 "best": float(np.min(bests)),
             }
-            if n in KNOWN_MINIMA:
-                target = KNOWN_MINIMA[n]
+            if n in km:
+                target = km[n]
                 histories = [g["history"] for g in group]
                 entry["success_rate"] = success_rate(histories, target, tol)
                 evals = [evals_to_target(g["history"], target, tol) for g in group]
@@ -55,12 +56,13 @@ def write_metrics(results_dir="results", out_dir="results", tol=0.01):
             methods[method] = entry
         path = str(Path(out_dir) / f"metrics_N{n}.json")
         Path(path).write_text(json.dumps({
-            "n": n, "known_min": KNOWN_MINIMA.get(n), "methods": methods,
+            "n": n, "known_min": km.get(n), "methods": methods,
         }, indent=2))
         written.append(path)
     return written
 
-def make_figures(results_dir="results", out_dir="results"):
+def make_figures(results_dir="results", out_dir="results", known_minima=None):
+    km = KNOWN_MINIMA if known_minima is None else known_minima
     runs = _load(results_dir)
     ns = sorted({n for (n, _) in runs})
     written = []
@@ -75,8 +77,8 @@ def make_figures(results_dir="results", out_dir="results"):
             x = np.arange(1, budget + 1)
             plt.plot(x, mean, label=method)
             plt.fill_between(x, mean - std, mean + std, alpha=0.2)
-        if n in KNOWN_MINIMA:
-            plt.axhline(KNOWN_MINIMA[n], ls="--", color="k", label="global min")
+        if n in km:
+            plt.axhline(km[n], ls="--", color="k", label="global min")
         plt.xlabel("relaxations"); plt.ylabel("best energy"); plt.title(f"LJ-{n}"); plt.legend()
         path = str(Path(out_dir) / f"convergence_N{n}.png")
         plt.savefig(path, dpi=120, bbox_inches="tight"); plt.close()

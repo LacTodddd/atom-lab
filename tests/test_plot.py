@@ -1,5 +1,6 @@
 import json
 from atomica.plot import success_rate, evals_to_target, write_metrics, KNOWN_MINIMA
+from atomica.plot import make_figures  # ensure importable with new kwarg
 
 def test_evals_to_target_hit_and_miss():
     hist = [[1, -1.0], [2, -3.0], [3, -3.0]]
@@ -43,3 +44,11 @@ def test_write_metrics_computes_success_rate(tmp_path):
     assert data["methods"]["bad"]["success_rate"] == 0.0
     assert data["methods"]["bad"]["evals_reached"] == 0
     assert data["methods"]["bad"]["mean_evals_to_target"] is None
+
+
+def test_make_figures_accepts_known_minima_override(tmp_path):
+    (tmp_path / "random_N12_seed0.json").write_text(json.dumps(
+        {"method": "random", "n": 12, "seed": 0, "budget": 2,
+         "history": [[1, -1.0], [2, -2.0]], "best_energy": -2.0, "best_config": [0,1,2,3,4,5]}))
+    out = make_figures(results_dir=tmp_path, out_dir=tmp_path, known_minima={12: -2.5})
+    assert out  # a PNG path was produced
