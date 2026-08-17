@@ -1,5 +1,5 @@
 import numpy as np
-from atomica.alloy import build_lattice, config_symbols, evaluate, sro_descriptor
+from atomica.alloy import build_lattice, config_symbols, evaluate, sro_descriptor, brute_force_min
 
 def test_lattice_has_12_sites():
     at = build_lattice()
@@ -35,3 +35,23 @@ def test_sro_all_au_pairs_only_auau():
     # descriptor check), Au-Cu and Cu-Cu bins are zero.
     d = sro_descriptor(tuple(range(12)))
     assert d[1] == 0.0 and d[2] == 0.0 and abs(d[0] - 1.0) < 1e-9
+
+def test_brute_force_finds_min_on_toy():
+    # Fake energy: lower when sites {0,1} are chosen. Space = C(4,2) = 6 configs.
+    def fake(config, n_sites=4):
+        return float(sum(config))  # minimized by (0,1)
+    e, cfg, n = brute_force_min(fake, n_sites=4, n_au=2)
+    assert n == 6
+    assert cfg == (0, 1)
+    assert e == 1.0
+
+def test_brute_force_caches(tmp_path):
+    calls = {"n": 0}
+    def fake(config, n_sites=4):
+        calls["n"] += 1
+        return float(sum(config))
+    p = tmp_path / "gt.json"
+    brute_force_min(fake, n_sites=4, n_au=2, cache_path=p)
+    first = calls["n"]
+    brute_force_min(fake, n_sites=4, n_au=2, cache_path=p)  # served from cache
+    assert calls["n"] == first

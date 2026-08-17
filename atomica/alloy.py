@@ -1,3 +1,7 @@
+import json
+from itertools import combinations
+from pathlib import Path
+
 import numpy as np
 from ase.build import bulk
 
@@ -50,3 +54,19 @@ def sro_descriptor(config, n_sites=N_SITES):
     counts = np.array([np.sum(ai & aj), np.sum(ai ^ aj), np.sum(~ai & ~aj)], dtype=float) / 2.0
     total = counts.sum()
     return counts / total if total > 0 else counts
+
+def brute_force_min(evaluate_fn, n_sites=N_SITES, n_au=N_AU, cache_path=None):
+    if cache_path is not None and Path(cache_path).exists():
+        d = json.loads(Path(cache_path).read_text())
+        return d["min_energy"], tuple(d["best_config"]), d["n_evaluated"]
+    best_e, best_c, n = float("inf"), None, 0
+    for config in combinations(range(n_sites), n_au):
+        e = evaluate_fn(config)
+        n += 1
+        if e < best_e:
+            best_e, best_c = e, config
+    if cache_path is not None:
+        Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(cache_path).write_text(json.dumps(
+            {"min_energy": best_e, "best_config": list(best_c), "n_evaluated": n}))
+    return best_e, best_c, n
