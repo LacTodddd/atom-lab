@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 results/*.json
 .venv/
+.claude/skills
+.claude/settings.local.json
+.DS_Store
