@@ -38,7 +38,7 @@
 - [ ] **Step 1: Initialize git and package dirs**
 
 ```bash
-cd "/Users/lactod/Work/Hobby/I'm Atom"
+cd atom-lab   # your repo root
 git init
 mkdir -p atomica tests results
 touch atomica/__init__.py tests/__init__.py
