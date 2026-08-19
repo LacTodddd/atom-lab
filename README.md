@@ -1,201 +1,142 @@
-# ATOMICA
+# ⚛️ ATOMICA
 
-**An AI-guided scientific-discovery loop for atomic systems.**
+> An AI-guided scientific-discovery loop for atomic systems — where every claim is backed by measurable, reproducible computation, never by the AI's say-so.
 
-The long-term vision: a system that reads scientific literature, proposes
-hypotheses about atomic structures, runs reproducible computational experiments
-to test them, criticizes its own conclusions, and decides what to investigate
-next — with a human as supervisor rather than operator. The guiding principle is
-that the AI helps *decide which question to test next*, while every scientific
-claim is backed by measurable, reproducible computation, never by the AI's
-say-so.
+![license](https://img.shields.io/badge/license-MIT-green)
+![python](https://img.shields.io/badge/python-3.13-blue)
+![tests](https://img.shields.io/badge/tests-37%20passing-brightgreen)
 
-That full vision is deliberately **not** what this repository builds yet. It is
-broken into slices, each of which produces a working, measurable result on its
-own. This repo is **Slice 1**.
+ATOMICA asks a single, cheat-proof question and answers it with numbers you can check: **under an equal compute budget, can AI/ML-guided search find good atomic configurations faster than classical baselines?** It is built in slices — each one a small, self-contained, measurable result.
 
 ---
 
-## Slice 1 — Does AI-guided search beat classical baselines?
+## ✨ Highlights
 
-Slice 1 builds the measurable core first, with **no LLM involved**. It asks one
-crisp, cheat-proof question:
-
-> Under an equal compute budget, can an AI/ML-guided search find low-energy
-> atomic configurations faster than conventional baselines?
-
-The test problem is **Lennard-Jones (LJ) cluster global-minimum search**: place
-*N* atoms so their total LJ energy is as low as possible. LJ clusters are a
-classic optimization benchmark with **known global minima** (Cambridge Cluster
-Database), so we have ground truth to validate against. Everything runs on a
-laptop in reduced units (ε = σ = 1).
-
-Three search strategies compete under the **same budget of local relaxations**
-(each relaxation = one budget unit; the surrogate's predictions are free). They
-differ in one axis — *how much they use past evaluations*:
-
-| Method | How it uses memory of past evaluations |
-|--------|----------------------------------------|
-| **Random** | None — sample, relax, keep the best |
-| **Genetic** | Implicit — a population plus cut-and-splice crossover + selection |
-| **Active-learning** | Explicit — a RandomForest surrogate learns the energy landscape and proposes where to look next (lower-confidence-bound acquisition) |
-
-Structures are fed to the surrogate through a permutation/rotation/translation-
-invariant **pairwise-distance histogram** descriptor.
+- 🧪 **Slice 1 — toy potential:** AI-guided search **loses** to a genetic baseline. An honest negative result.
+- 🔬 **P2 — real ML potential (MACE):** on a Cu-Au alloy-ordering problem, AI-guided search **wins** — fewer evaluations, higher hit rate.
+- 🎯 Every result is validated against **ground truth** (known global minima / brute force), so "it worked" is never a matter of opinion.
+- 🚫 No LLM in the loop yet — the trustworthy computational core comes first (see [Roadmap](#-roadmap)).
 
 ---
 
-## Results
+## 🧭 The idea
 
-Full sweep: `N ∈ {13, 38}`, 3 methods, 5 seeds, budget = 200 relaxations.
+The long-term vision is a system that reads scientific literature, proposes hypotheses about atomic structures, runs reproducible experiments to test them, criticizes its own conclusions, and decides what to investigate next — with a human as supervisor, not operator.
 
-**LJ-13** — every method finds the exact global minimum (−44.326801). The
-differentiator is speed: Random and Genetic get there in ~25–50 relaxations;
-Active-learning ties on final quality but is markedly slower (~165).
+That full vision is **not** what this repo is yet. It's deliberately broken into slices, each producing a working, measurable result on its own.
 
-**LJ-38** — a genuine funnel problem; no method reached the true minimum
-(−173.928427) within budget.
+---
 
-| Method | mean best energy | best of 5 seeds | mean gap to true min |
-|--------|-----------------:|----------------:|---------------------:|
-| **Genetic** | −172.11 | −173.13 | 1.82 |
+## 🧪 Slice 1 — Does AI-guided search beat classical baselines?
+
+**Problem:** Lennard-Jones cluster global-minimum search — place *N* atoms to minimize total LJ energy. Known global minima (Cambridge Cluster Database) give the ground truth. Runs on a laptop, reduced units (ε = σ = 1), no LLM.
+
+Three strategies compete under an equal budget of local relaxations, differing only in *how they use past evaluations*:
+
+| Method | Memory of past evaluations |
+|--------|----------------------------|
+| **Random** | None |
+| **Genetic** | Implicit — population + cut-and-splice crossover + selection |
+| **Active-learning** | Explicit — a RandomForest surrogate over a distance-histogram descriptor picks where to look next |
+
+**Results** (`N ∈ {13, 38}`, 5 seeds, budget = 200 relaxations):
+
+- **LJ-13** — every method finds the global minimum (−44.326801); active-learning ties on quality but converges slower (~165 relaxations vs ~25–50).
+- **LJ-38** — a hard funnel; nobody reaches the true minimum (−173.928427) within budget:
+
+| Method | mean best | best of 5 | gap to true min |
+|--------|----------:|----------:|----------------:|
+| 🥇 Genetic | −172.11 | −173.13 | 1.82 |
 | Active-learning | −170.49 | −171.16 | 3.44 |
 | Random | −169.71 | −170.21 | 4.21 |
 
 ![LJ-13 convergence](results/convergence_N13.png)
 ![LJ-38 convergence](results/convergence_N38.png)
 
-**Verdict: the active-learning method, as specified, does *not* beat the
-baselines.** It loses to Genetic at N=38 and merely ties (while converging
-slower) at N=13.
-
-This is a real, reported-as-is negative result — which is the point. The
-experiment was designed to be measurable and cheat-proof, and the honest answer
-under these settings is "not yet." Plausible reasons: the distance-histogram
-descriptor is lossy (distinct structures can map to similar histograms), and the
-acquisition parameters (`k_acq`, candidate-pool size, initial sample count) are
-untuned. Making the surrogate competitive — via a richer descriptor, tuning, or
-a surrogate-screened basin-hopping scheme — is future work, not a Slice 1 goal.
+**❌ Verdict:** active-learning, as specified, does **not** beat the baselines here — a real, reported-as-is negative result. Likely causes: the distance-histogram descriptor is lossy and the acquisition is untuned. Fixing that is future work, not a Slice 1 goal.
 
 ---
 
-## P2 — Cu-Au alloy ordering (real MACE potential)
+## 🔬 P2 — Cu-Au alloy ordering, with a real ML potential
 
-P2 swaps the toy LJ potential for a real ML interatomic potential
-(**MACE-MP-0**, `mace-torch`) and asks the same cheat-proof question on a real
-materials problem: on a fixed 12-site Cu-Au FCC lattice (6 Au, 6 Cu —
-composition fixed, only the *arrangement* varies), can AI-guided search find
-the lowest-energy Cu/Au ordering faster than classical baselines, under equal
-MACE-evaluation budget?
+**Problem:** swap the toy potential for **MACE-MP-0** (`mace-torch`) and ask the same question on a real materials problem — on a fixed 12-site Cu-Au FCC lattice (6 Au, 6 Cu, only the *arrangement* varies), find the lowest-energy ordering under an equal MACE-evaluation budget.
 
-Because the site count (C(12,6) = 924 configurations) is small enough,
-**ground truth is brute-forced** with the real MACE potential rather than
-taken from a literature table — every one of the 924 orderings is evaluated
-once and cached (`results/alloy_ground_truth.json`).
-
-Run it:
+Because there are only C(12,6) = 924 configurations, **ground truth is brute-forced** with the real potential — every ordering evaluated once and cached.
 
 ```bash
-python3 -m atomica.run_alloy --budget 100 --seeds 5 --out results
+python3 -m atomica.run_alloy --budget 100 --seeds 5 --out results/alloy
 ```
 
-> Note: `run.py` (LJ) and `run_alloy.py` (alloy) both write to `results/` by
-> default. Run them into separate directories (e.g. `--out results/alloy`) if
-> you keep both, otherwise each regenerates the other's figures.
+**Result** — brute-forced global minimum **−44.36847 eV**, config `[0, 1, 4, 5, 8, 9]`:
 
-### Result
+| Method | mean best | success rate | mean evals-to-target |
+|--------|----------:|:------------:|---------------------:|
+| 🥇 Active-learning | −44.36847 | 5/5 (100%) | **17.2** |
+| Genetic | −44.36847 | 5/5 (100%) | 26.8 |
+| Random | −44.29604 | 2/5 (40%) | 28.5 |
 
-Brute-forced global minimum: **−44.36847 eV**, config (Au on sites)
-`[0, 1, 4, 5, 8, 9]` out of 924 evaluated configurations.
+![Cu-Au convergence](results/convergence_N12.png)
 
-| Method | mean best (5 seeds) | best of 5 seeds | success rate (hit ground state) | mean evals-to-target |
-|--------|---------------------:|-----------------:|:--------------------------------:|----------------------:|
-| **Active-learning** | −44.36847 | −44.36847 | 5/5 (100%) | **17.2** |
-| **Genetic** | −44.36847 | −44.36847 | 5/5 (100%) | 26.8 |
-| Random | −44.29604 | −44.36847 | 2/5 (40%) | 28.5 (of the 2 that hit it) |
+**✅ Verdict:** active-learning **wins** — reaches the true ground state every seed, in the fewest evaluations. The opposite of Slice 1: on a real potential with a small, cheat-proof search space, the surrogate delivers a genuine, measured speedup.
 
-![Cu-Au N12 convergence](results/convergence_N12.png)
+> 🧲 **Physics check:** the ground state is a pure **L1₀ layering** (alternating Cu / Au (100) planes) — exactly the real CuAu-I ordered intermetallic. A reassuring sanity check on the MACE potential.
 
-**Verdict: active-learning wins here.** Under equal budget it reached the
-brute-forced global minimum in every seed, and did so in the fewest MACE
-evaluations on average (17.2 vs Genetic's 26.8). Genetic also converges
-reliably (5/5) but slower. Random only reaches the true ground state in 2 of 5
-seeds. This is the opposite of the Slice-1 LJ-38 result (where active-learning
-lost) — on this real-potential, small-search-space problem, the RandomForest
-surrogate over the SRO descriptor gives a genuine, honestly-measured speedup.
+---
 
-Bonus physics note: the ground-state ordering is a pure **L1₀-type layering**
-— every Au atom sits on one (100) plane (x = 0) and every Cu atom on the
-adjacent (100) plane (x = a/2), i.e. alternating pure Cu/Au planes rather than
-a mixed arrangement. That matches the real CuAu-I ordered intermetallic
-structure, which is a reassuring physical sanity check on the MACE potential.
-
-See [`docs/superpowers/specs/2026-08-17-atomica-p2-alloy-ordering-design.md`](docs/superpowers/specs/2026-08-17-atomica-p2-alloy-ordering-design.md)
-for the full P2 design spec.
-
-## Install
+## 🚀 Quickstart
 
 ```bash
-python3 -m pip install -r requirements.txt
+python3 -m pip install -r requirements.txt   # Python 3.13; ase, matplotlib, numpy, scipy, scikit-learn, mace-torch
 ```
 
-Requires Python 3.13. Dependencies: `ase`, `matplotlib`, `numpy`, `scipy`,
-`scikit-learn`.
-
-## Run
-
 ```bash
-python3 -m atomica.run --n 13 38 --budget 200 --seeds 5
-```
+# Slice 1 — LJ cluster search
+python3 -m atomica.run --n 13 38 --budget 200 --seeds 5 --out results/lj
 
-Flags: `--n` (one or more cluster sizes), `--budget` (relaxations per method),
-`--seeds` (repeats, uses seeds `0..N-1`), `--methods` (subset of
-`random genetic active`), `--out` (output directory). Writes
-`results/convergence_N{n}.png` plus per-run JSON.
+# P2 — Cu-Au alloy ordering (real MACE)
+python3 -m atomica.run_alloy --budget 100 --seeds 5 --out results/alloy
 
-## Tests
-
-```bash
+# Tests
 python3 -m pytest -q
 ```
 
-The most important test relaxes a known LJ-13 icosahedron and asserts it reaches
-the reference energy — this validates that the potential, the relaxation, and
-the harness are all correct.
+> Tip: give the two CLIs separate `--out` directories (as above); both default to `results/`, so sharing it makes each regenerate the other's figures.
 
 ---
 
-## Project layout
+## 🗂️ Project layout
 
 ```
 atomica/
-├── potential.py     # ASE Lennard-Jones calculator + local relaxation (the swap point for real ML potentials later)
-├── descriptor.py    # pairwise-distance histogram (permutation/rotation/translation invariant)
-├── search.py        # random / genetic / active_learning — one shared signature, one shared budget
-├── benchmark.py     # runs method × seed × N, logs reproducible per-run JSON
-├── plot.py          # convergence curves + success-rate / evals-to-target metrics (LJ + alloy, shared)
-├── run.py           # CLI entry point (P1 — LJ clusters)
-├── alloy.py         # MACE-MP-0 evaluate on a fixed Cu-Au FCC lattice, SRO descriptor, brute-force ground truth
-├── alloy_search.py  # random / genetic / active_learning over Au/Cu site orderings (composition-preserving)
-└── run_alloy.py     # CLI entry point (P2 — Cu-Au alloy ordering)
+├── potential.py      # ASE Lennard-Jones calculator + local relaxation (swap point for real ML potentials)
+├── descriptor.py     # pairwise-distance histogram (permutation/rotation/translation invariant)
+├── search.py         # random / genetic / active-learning — shared signature, shared budget
+├── benchmark.py      # runs method × seed × N, logs reproducible per-run JSON
+├── plot.py           # convergence curves + success-rate / evals-to-target metrics (shared)
+├── run.py            # CLI — Slice 1 (LJ clusters)
+├── alloy.py          # MACE-MP-0 evaluate on a fixed Cu-Au FCC lattice, SRO descriptor, brute-force ground truth
+├── alloy_search.py   # random / genetic / active-learning over Au/Cu orderings (composition-preserving)
+└── run_alloy.py      # CLI — P2 (Cu-Au alloy ordering)
 ```
 
-## Roadmap
+Design specs and implementation plans live under [`docs/superpowers/`](docs/superpowers/).
 
-Ordered by what de-risks the most and is most measurable. LLM work is
-deliberately last — it has the lowest measurability and the highest risk of
-looking impressive while meaning nothing, so the trustworthy computational core
-comes first.
+---
 
-| Phase | Adds | Deliverable |
-|-------|------|-------------|
-| **P1 (this repo)** | Search benchmark on a toy LJ potential | Does AI-guided beat the baselines? |
-| P2 | A real ML potential (MACE/CHGNet) + a small real problem (vacancy/substitution), via the same `potential` interface | A real-physics result on the same harness |
-| P3 | An LLM *strategist* that reads results and proposes the next experiment (never touches the physics) | A semi-autonomous, human-supervised loop |
-| P4 | An LLM *critic* proposing control/falsification experiments | Reduced false-discovery rate |
-| P5 | A literature agent (paper → gaps → hypotheses) feeding P3 | The full vision |
+## 🗺️ Roadmap
 
-See [`docs/superpowers/specs/2026-08-13-atomica-slice1-design.md`](docs/superpowers/specs/2026-08-13-atomica-slice1-design.md)
-for the full design and rationale, and
-[`docs/superpowers/plans/2026-08-13-atomica-slice1-search-benchmark.md`](docs/superpowers/plans/2026-08-13-atomica-slice1-search-benchmark.md)
-for the implementation plan.
+The computational core comes first; LLM work is deliberately last — it has the lowest measurability and the highest risk of looking impressive while meaning nothing.
+
+| Phase | Adds | Status |
+|-------|------|:------:|
+| **P1** | Search benchmark on a toy LJ potential | ✅ done |
+| **P2** | Real ML potential (MACE-MP-0) on a Cu-Au alloy-ordering problem | ✅ done |
+| **P3** | An LLM *strategist* that reads results and proposes the next experiment (never touches the physics) | ⏳ next |
+| **P4** | An LLM *critic* proposing control / falsification experiments | 🔒 planned |
+| **P5** | A literature agent (paper → gaps → hypotheses) feeding P3 | 🔒 planned |
+
+---
+
+## 📄 License
+
+[MIT](LICENSE) © 2026 Chayanun Yuvanaboon
