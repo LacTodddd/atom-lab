@@ -42,13 +42,23 @@ def main(argv=None):
 
     llm = make_llm_proposer(a.model)
     if llm is not None:
+        import anthropic  # already imported successfully inside make_llm_proposer
         try:
             # anthropic.Anthropic() doesn't validate credentials until the first
             # request (it defers to header-building), so construction can succeed
-            # with no key configured; catch that here too, not just at construction.
+            # with no key configured. AnthropicError covers real API-level auth/
+            # connection failures; the no-credential case specifically raises a
+            # bare TypeError from header validation (not an AnthropicError) with
+            # a stable "Could not resolve authentication method" message, so it's
+            # matched by content rather than type. Any other error (a real bug in
+            # the LLM path) propagates instead of being silently mislabeled.
             best["llm"] = _best_over_trajectories(
                 lambda t: llm, a.trajectories, a.rounds, tune_seeds, a.budget)
-        except Exception as e:
+        except anthropic.AnthropicError as e:
+            print(f"[run_tune] LLM arm disabled: {e}")
+        except TypeError as e:
+            if "authentication method" not in str(e):
+                raise
             print(f"[run_tune] LLM arm disabled: {e}")
 
     comparison = compare(best, eval_seeds, a.budget)
