@@ -98,3 +98,7 @@ def llm_proposer(client, model=MODEL):
                 return block.input
         raise ValueError("no propose_params tool_use in response")
     return propose
+
+def compare(best_by_tuner, eval_seeds, budget, n=38):
+    everyone = {**best_by_tuner, "default": DEFAULT_PARAMS}
+    return {name: score_params(params, eval_seeds, budget, n) for name, params in everyone.items()}
