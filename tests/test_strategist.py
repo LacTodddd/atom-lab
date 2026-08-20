@@ -52,3 +52,28 @@ def test_tune_falls_back_on_garbage():
     best, trace = tune(proposer, rounds=2, tune_seeds=[0], budget=12, seed=1)
     assert all(t["fallback"] for t in trace)         # each round fell back to a random draw
     assert best["pool"] in PARAM_SPACE["pool"]
+
+from atomica.strategist import llm_proposer, build_prompt, MODEL
+
+class _FakeBlock:
+    def __init__(self, inp): self.type = "tool_use"; self.name = "propose_params"; self.input = inp
+class _FakeResp:
+    def __init__(self, inp): self.content = [_FakeBlock(inp)]
+class _FakeMessages:
+    def __init__(self, inp): self._inp = inp; self.last_kwargs = None
+    def create(self, **kwargs): self.last_kwargs = kwargs; return _FakeResp(self._inp)
+class _FakeClient:
+    def __init__(self, inp): self.messages = _FakeMessages(inp)
+
+def test_llm_proposer_extracts_params():
+    client = _FakeClient({"k_acq": 2.0, "pool": 80, "n_init": 10})
+    propose = llm_proposer(client)
+    raw = propose([{"params": {"k_acq": 1.0, "pool": 40, "n_init": 5},
+                    "mean_best": -170.0, "mean_evals": 100}])
+    assert raw == {"k_acq": 2.0, "pool": 80, "n_init": 10}
+    assert client.messages.last_kwargs["model"] == MODEL       # used the configured model
+
+def test_build_prompt_mentions_space_and_history():
+    txt = build_prompt([{"params": {"k_acq": 1.0, "pool": 40, "n_init": 5},
+                         "mean_best": -170.0, "mean_evals": 100}])
+    assert "k_acq" in txt and "pool" in txt and "-170" in txt

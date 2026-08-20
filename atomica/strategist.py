@@ -53,3 +53,48 @@ def tune(proposer, rounds, tune_seeds, budget, seed=0, n=38):
         trace.append({**score, "round": r, "fallback": fallback})
     best = min(trace, key=lambda t: (t["mean_best"], t["mean_evals"]))["params"]
     return best, trace
+
+MODEL = "claude-sonnet-5"
+
+_TOOL = {
+    "name": "propose_params",
+    "description": "Propose the next hyperparameters to try for the active-learning search.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "k_acq": {"type": "number", "description": "LCB weight in [0,3]"},
+            "pool": {"type": "integer", "description": "candidate pool size: 40, 80, or 160"},
+            "n_init": {"type": "integer", "description": "initial samples: 5, 10, or 20"},
+        },
+        "required": ["k_acq", "pool", "n_init"],
+        "additionalProperties": False,
+    },
+    "strict": True,
+}
+
+def build_prompt(history):
+    lines = ["You tune an active-learning search that minimizes cluster energy in as few",
+             "evaluations as possible. Parameter space: k_acq in [0,3] (float),",
+             "pool in {40,80,160}, n_init in {5,10,20}. Lower mean_best is better;",
+             "break ties by lower mean_evals. History of what has been tried:"]
+    if not history:
+        lines.append("(none yet — propose a sensible first configuration)")
+    for t in history:
+        p = t["params"]
+        lines.append(f"- k_acq={p['k_acq']:.2f} pool={p['pool']} n_init={p['n_init']}"
+                     f" -> mean_best={t['mean_best']:.3f}, mean_evals={t['mean_evals']:.1f}")
+    lines.append("Call propose_params with the next configuration to try.")
+    return "\n".join(lines)
+
+def llm_proposer(client, model=MODEL):
+    def propose(history):
+        resp = client.messages.create(
+            model=model, max_tokens=512,
+            tools=[_TOOL], tool_choice={"type": "tool", "name": "propose_params"},
+            messages=[{"role": "user", "content": build_prompt(history)}],
+        )
+        for block in resp.content:
+            if getattr(block, "type", None) == "tool_use" and block.name == "propose_params":
+                return block.input
+        raise ValueError("no propose_params tool_use in response")
+    return propose
