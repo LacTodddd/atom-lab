@@ -4,7 +4,7 @@
 
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![python](https://img.shields.io/badge/python-3.13-blue)
-![tests](https://img.shields.io/badge/tests-48%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-49%20passing-brightgreen)
 
 ATOMICA asks a single, cheat-proof question and answers it with numbers you can check: **under an equal compute budget, can AI/ML-guided search find good atomic configurations faster than classical baselines?** It is built in slices — each one a small, self-contained, measurable result.
 
@@ -122,11 +122,11 @@ parameters (`k_acq=2.79, pool=40, n_init=10`) beat the fixed default** on mean b
 real edge from just *searching* the hyperparameter space at all, even without an LLM.
 
 **⚠️ Honest note:** this environment has no `ANTHROPIC_API_KEY` and no `ant` profile configured, so
-the **LLM arm was not run here** — the table above is random-vs-default only (confirmed by
-`results/tune_report.json`, which contains no `llm` key; the CLI printed
-`[run_tune] LLM arm disabled: ...` and continued). The LLM-vs-random comparison is left for you to
-run with your own key; a null result (LLM ≈ random) is a valid outcome, just as Slice 1's negative
-result was.
+the **LLM arm was not run here** (no credential) — the table above is random-vs-default only. Running
+the CLI regenerates `results/tune_report.json` with the `random` and `default` arms only (the CLI
+printed `[run_tune] LLM arm disabled: ...` and continued). The LLM-vs-random comparison is left for
+you to run with your own key; a null result (LLM ≈ random) is a valid outcome, just as Slice 1's
+negative result was.
 
 **Caveat:** the LLM is a stochastic proposer sampled over a handful of trajectories (`--trajectories`)
 — re-running can shift its result. See the design spec:
