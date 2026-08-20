@@ -42,8 +42,14 @@ def main(argv=None):
 
     llm = make_llm_proposer(a.model)
     if llm is not None:
-        best["llm"] = _best_over_trajectories(
-            lambda t: llm, a.trajectories, a.rounds, tune_seeds, a.budget)
+        try:
+            # anthropic.Anthropic() doesn't validate credentials until the first
+            # request (it defers to header-building), so construction can succeed
+            # with no key configured; catch that here too, not just at construction.
+            best["llm"] = _best_over_trajectories(
+                lambda t: llm, a.trajectories, a.rounds, tune_seeds, a.budget)
+        except Exception as e:
+            print(f"[run_tune] LLM arm disabled: {e}")
 
     comparison = compare(best, eval_seeds, a.budget)
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)

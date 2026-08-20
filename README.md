@@ -4,7 +4,7 @@
 
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![python](https://img.shields.io/badge/python-3.13-blue)
-![tests](https://img.shields.io/badge/tests-37%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-48%20passing-brightgreen)
 
 ATOMICA asks a single, cheat-proof question and answers it with numbers you can check: **under an equal compute budget, can AI/ML-guided search find good atomic configurations faster than classical baselines?** It is built in slices — each one a small, self-contained, measurable result.
 
@@ -15,7 +15,7 @@ ATOMICA asks a single, cheat-proof question and answers it with numbers you can 
 - 🧪 **Slice 1 — toy potential:** AI-guided search **loses** to a genetic baseline. An honest negative result.
 - 🔬 **P2 — real ML potential (MACE):** on a Cu-Au alloy-ordering problem, AI-guided search **wins** — fewer evaluations, higher hit rate.
 - 🎯 Every result is validated against **ground truth** (known global minima / brute force), so "it worked" is never a matter of opinion.
-- 🚫 No LLM in the loop yet — the trustworthy computational core comes first (see [Roadmap](#-roadmap)).
+- 🤖 **P3 — LLM enters the loop, bounded:** it proposes hyperparameters as validated JSON, never physics; see below for the honestly-reported result.
 
 ---
 
@@ -83,6 +83,57 @@ python3 -m atomica.run_alloy --budget 100 --seeds 5 --out results/alloy
 
 ---
 
+## 🤖 P3 — Does an LLM strategist tune the search better than random?
+
+**Problem:** Slice 1 flagged that active-learning's acquisition hyperparameters (`k_acq`, `pool`,
+`n_init`) were **untuned**. P3 asks the natural follow-up: can an LLM, reading `(params, result)`
+history and proposing the next hyperparameters as validated structured JSON, tune them better than
+random guessing? The LLM's entire action space is three bounded numbers — it never touches the
+physics, never runs code, never chooses the problem. Every proposal is clamped/snapped by
+`validate_params`, and a malformed proposal falls back to a random draw for that round.
+
+Three tuners compete on **LJ-38** under an equal budget of tuning rounds, then the best parameters
+each found are scored on **held-out eval-seeds** (disjoint from tuning) against the fixed Slice-1
+default:
+
+| Tuner | How it picks the next hyperparameters |
+|-------|----------------------------------------|
+| **Default** | Fixed Slice-1 values (`k_acq=1.0, pool=100, n_init=10`) — no tuning |
+| **Random** | Uniform draw each round |
+| **LLM** | Reads tuning history, proposes next params as a validated tool call |
+
+```bash
+python3 -m atomica.run_tune --rounds 6 --tune-seeds 2 --eval-seeds 5 --budget 120 --trajectories 3 --out results
+```
+
+The LLM arm needs **your own** `ANTHROPIC_API_KEY` (or an `ant auth login` profile) — the code never
+contains a key. Without one, the CLI still runs the random-vs-default comparison and prints
+`[run_tune] LLM arm disabled: ...` instead of failing.
+
+**Result** (held-out eval-seeds, budget = 120, LLM arm requires a credential — see below):
+
+| Tuner | mean best | mean evals-to-target |
+|-------|----------:|----------------------:|
+| Random | −170.998 | 120.0 (never hit target) |
+| Default | −170.714 | 120.0 (never hit target) |
+
+Neither tuner reaches the true LJ-38 minimum (−173.928427) within this budget, but **random-tuned
+parameters (`k_acq=2.79, pool=40, n_init=10`) beat the fixed default** on mean best-energy — a small,
+real edge from just *searching* the hyperparameter space at all, even without an LLM.
+
+**⚠️ Honest note:** this environment has no `ANTHROPIC_API_KEY` and no `ant` profile configured, so
+the **LLM arm was not run here** — the table above is random-vs-default only (confirmed by
+`results/tune_report.json`, which contains no `llm` key; the CLI printed
+`[run_tune] LLM arm disabled: ...` and continued). The LLM-vs-random comparison is left for you to
+run with your own key; a null result (LLM ≈ random) is a valid outcome, just as Slice 1's negative
+result was.
+
+**Caveat:** the LLM is a stochastic proposer sampled over a handful of trajectories (`--trajectories`)
+— re-running can shift its result. See the design spec:
+[`docs/superpowers/specs/2026-08-19-atomica-p3-llm-tuner-design.md`](docs/superpowers/specs/2026-08-19-atomica-p3-llm-tuner-design.md).
+
+---
+
 ## 🚀 Quickstart
 
 ```bash
@@ -95,6 +146,9 @@ python3 -m atomica.run --n 13 38 --budget 200 --seeds 5 --out results/lj
 
 # P2 — Cu-Au alloy ordering (real MACE)
 python3 -m atomica.run_alloy --budget 100 --seeds 5 --out results/alloy
+
+# P3 — LLM-vs-random hyperparameter tuning (needs ANTHROPIC_API_KEY for the LLM arm; runs random-vs-default without one)
+python3 -m atomica.run_tune --rounds 6 --tune-seeds 2 --eval-seeds 5 --budget 120 --trajectories 3 --out results
 
 # Tests
 python3 -m pytest -q
@@ -116,7 +170,9 @@ atomica/
 ├── run.py            # CLI — Slice 1 (LJ clusters)
 ├── alloy.py          # MACE-MP-0 evaluate on a fixed Cu-Au FCC lattice, SRO descriptor, brute-force ground truth
 ├── alloy_search.py   # random / genetic / active-learning over Au/Cu orderings (composition-preserving)
-└── run_alloy.py      # CLI — P2 (Cu-Au alloy ordering)
+├── run_alloy.py      # CLI — P2 (Cu-Au alloy ordering)
+├── strategist.py     # bounded param space, validation, tune/compare loop, LLM proposer (structured tool call)
+└── run_tune.py       # CLI — P3 (LLM-vs-random hyperparameter tuning)
 ```
 
 Design specs and implementation plans live under [`docs/superpowers/`](docs/superpowers/).
@@ -131,7 +187,7 @@ The computational core comes first; LLM work is deliberately last — it has the
 |-------|------|:------:|
 | **P1** | Search benchmark on a toy LJ potential | ✅ done |
 | **P2** | Real ML potential (MACE-MP-0) on a Cu-Au alloy-ordering problem | ✅ done |
-| **P3** | An LLM *strategist* that reads results and proposes the next experiment (never touches the physics) | ⏳ next |
+| **P3** | An LLM *strategist* that reads results and proposes the next experiment (never touches the physics) | ✅ done |
 | **P4** | An LLM *critic* proposing control / falsification experiments | 🔒 planned |
 | **P5** | A literature agent (paper → gaps → hypotheses) feeding P3 | 🔒 planned |
 
