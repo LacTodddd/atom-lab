@@ -30,3 +30,26 @@ def score_params(params, tune_seeds, budget, n=38):
     return {"mean_best": float(np.mean(bests)),
             "mean_evals": float(np.mean(evals)),
             "params": params}
+
+def random_proposer(rng):
+    def propose(history):
+        return {"k_acq": float(rng.uniform(*PARAM_SPACE["k_acq"])),
+                "pool": int(rng.choice(PARAM_SPACE["pool"])),
+                "n_init": int(rng.choice(PARAM_SPACE["n_init"]))}
+    return propose
+
+def tune(proposer, rounds, tune_seeds, budget, seed=0, n=38):
+    rng = np.random.default_rng(seed)
+    fallback_draw = random_proposer(rng)
+    trace = []
+    for r in range(rounds):
+        fallback = False
+        try:
+            params = validate_params(proposer(trace))
+        except ValueError:
+            params = validate_params(fallback_draw(trace))
+            fallback = True
+        score = score_params(params, tune_seeds, budget, n)
+        trace.append({**score, "round": r, "fallback": fallback})
+    best = min(trace, key=lambda t: (t["mean_best"], t["mean_evals"]))["params"]
+    return best, trace
