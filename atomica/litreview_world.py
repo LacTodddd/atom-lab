@@ -45,3 +45,14 @@ def make_paper(world, seed, min_frac=0.3, max_frac=0.7, n_subbands=4):
             "gap_side": "high" if gap_high else "low",
             "better_in_gap": better_in_gap,
             "seed": int(seed)}
+
+def generate_papers(world, n_papers, seed0=0, min_frac=0.3, max_frac=0.7, min_count=40):
+    papers, seed = [], seed0
+    n = len(world["energy"])
+    while len(papers) < n_papers:
+        p = make_paper(world, seed, min_frac, max_frac)
+        seed += 1
+        if p["n_explored"] < min_count or (n - p["n_explored"]) < min_count:
+            continue                        # explored or gap too small
+        papers.append(p)
+    return papers

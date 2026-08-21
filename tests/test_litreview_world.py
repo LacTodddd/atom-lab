@@ -1,6 +1,6 @@
 import numpy as np
 from atomica.critic_world import build_world, features
-from atomica.litreview_world import make_paper
+from atomica.litreview_world import make_paper, generate_papers
 
 def _fake_world():
     # Energy = x1 + 0.31*x2 + 0.07*layer — a near-unique combo (few ties, a clean global minimum),
@@ -37,3 +37,12 @@ def test_label_matches_independent_recompute():
             assert E.min() < p["best_energy"] - 1e-9
         else:
             assert abs(E.min() - p["best_energy"]) < 1e-9 or E.min() >= p["best_energy"] - 1e-9
+
+def test_generate_papers_count_and_mixed_labels():
+    w = _fake_world()
+    papers = generate_papers(w, n_papers=40, seed0=0)
+    assert len(papers) == 40
+    for p in papers:
+        assert p["n_explored"] >= 40
+    labels = {p["better_in_gap"] for p in papers}
+    assert labels == {True, False}          # both classes appear (energy = x1 gives a real mix)
