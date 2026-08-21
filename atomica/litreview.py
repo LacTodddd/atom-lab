@@ -35,3 +35,32 @@ def heuristic_reviewer(paper):
     h = len(t) // 2
     far, near = t[:h], t[h:]
     return {"better_in_gap": bool(min(near) < min(far))}
+
+def review_one(paper, reviewer):
+    # cheat-proof: hand the reviewer only observable summary fields — never the label.
+    view = {k: v for k, v in paper.items() if k != "better_in_gap"}
+    fallback = False
+    try:
+        pred = validate_prediction(reviewer(view))
+    except ValueError:
+        pred = {"better_in_gap": False}
+        fallback = True
+    predicted = pred["better_in_gap"]
+    return {"predicted": predicted, "correct": predicted == paper["better_in_gap"],
+            "fallback": fallback}
+
+def review_batch(papers, reviewer):
+    return [review_one(p, reviewer) for p in papers]
+
+def score(papers, reviews):
+    y = [p["better_in_gap"] for p in papers]
+    yhat = [r["predicted"] for r in reviews]
+    n = len(papers)
+    correct = int(sum(a == b for a, b in zip(y, yhat)))
+    tp = int(sum(h and t for h, t in zip(yhat, y)))
+    pred_pos = int(sum(yhat))
+    actual_pos = int(sum(y))
+    return {"accuracy": correct / n if n else 0.0,
+            "precision": tp / pred_pos if pred_pos else 0.0,
+            "recall": tp / actual_pos if actual_pos else 0.0,
+            "n": n, "base_rate_better": actual_pos / n if n else 0.0}
