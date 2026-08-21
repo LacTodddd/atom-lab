@@ -85,3 +85,40 @@ def score(claims, reviews):
             "n_accepted": n_accepted, "accepted_false": accepted_false,
             "accepted_true": accepted_true, "n_claims": n, "n_true": n_true,
             "base_rate_false": (n - n_true) / n if n else 0.0}
+
+MODEL = "claude-sonnet-5"
+
+def build_prompt(claim):
+    tgt = claim["target"]
+    direction = "lower" if claim["claim_sign"] < 0 else "higher"
+    others = [f for f in FEATURE_NAMES if f != tgt]
+    s = claim["sample"]
+    n = len(s["energy"])
+    lines = [
+        "A scientist studied Cu-Au orderings on a fixed 12-site lattice. Each config has three",
+        f"integer structural features {FEATURE_NAMES} and a MACE energy (lower = more stable).",
+        f"CLAIM: higher {tgt} is associated with {direction} energy.",
+        f"The claim was drawn from this sample of {n} configs. It may be CONFOUNDED: another",
+        f"feature ({' or '.join(others)}) may covary with {tgt} and actually drive the energy.",
+        "Sample (one row per config):",
+        "  " + "  ".join(FEATURE_NAMES) + "  energy",
+    ]
+    for i in range(n):
+        row = "  ".join(f"{s[name][i]:g}" for name in FEATURE_NAMES)
+        lines.append(f"  {row}  {s['energy'][i]:.3f}")
+    lines.append(f"Call critique_claim: verdict 'supported' if {tgt} genuinely drives energy, or "
+                 f"'confounded' naming the confounder among {others}.")
+    return "\n".join(lines)
+
+def llm_critic(client, model=MODEL):
+    def critic(claim):
+        resp = client.messages.create(
+            model=model, max_tokens=512,
+            tools=[CRITIC_TOOL], tool_choice={"type": "tool", "name": "critique_claim"},
+            messages=[{"role": "user", "content": build_prompt(claim)}],
+        )
+        for block in resp.content:
+            if getattr(block, "type", None) == "tool_use" and block.name == "critique_claim":
+                return block.input
+        raise ValueError("no critique_claim tool_use in response")
+    return critic

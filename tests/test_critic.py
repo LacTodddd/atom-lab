@@ -4,6 +4,7 @@ import pytest
 from atomica.critic import (
     validate_critique, apply_control,
     accept_all_critic, random_critic, review_one, review_batch, score,
+    llm_critic, build_prompt, MODEL,
 )
 from atomica.critic_world import FEATURE_NAMES
 
@@ -94,3 +95,24 @@ def test_review_records_fallback_on_garbage():
     c = _claim("x1", 1, "x2", False, _trivial_sample())
     r = review_one(c, garbage_critic)
     assert r["fallback"] is True and r["accepted"] is True   # invalid -> supported fallback
+
+class _FakeBlock:
+    def __init__(self, inp): self.type = "tool_use"; self.name = "critique_claim"; self.input = inp
+class _FakeResp:
+    def __init__(self, inp): self.content = [_FakeBlock(inp)]
+class _FakeMessages:
+    def __init__(self, inp): self._inp = inp; self.last_kwargs = None
+    def create(self, **kw): self.last_kwargs = kw; return _FakeResp(self._inp)
+class _FakeClient:
+    def __init__(self, inp): self.messages = _FakeMessages(inp)
+
+def test_llm_critic_extracts_verdict():
+    client = _FakeClient({"verdict": "confounded", "confounder": "x2"})
+    critic = llm_critic(client)
+    raw = critic(_claim("x1", 1, "x2", False, _trivial_sample()))
+    assert raw == {"verdict": "confounded", "confounder": "x2"}
+    assert client.messages.last_kwargs["model"] == MODEL
+
+def test_build_prompt_mentions_target_and_candidates():
+    txt = build_prompt(_claim("x1", -1, "x2", False, _trivial_sample()))
+    assert "x1" in txt and "x2" in txt and "layer" in txt
