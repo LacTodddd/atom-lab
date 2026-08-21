@@ -1,7 +1,10 @@
 # tests/test_critic.py
 import numpy as np
 import pytest
-from atomica.critic import validate_critique, apply_control
+from atomica.critic import (
+    validate_critique, apply_control,
+    accept_all_critic, random_critic, review_one, review_batch, score,
+)
 from atomica.critic_world import FEATURE_NAMES
 
 def test_validate_supported_and_confounded():
@@ -50,3 +53,44 @@ def test_control_flips_when_stratification_reverses_sign():
     # pooled contrast is +? high-x mean vs low-x mean:
     # controlled (stratified on z) contrast is negative -> flips claim_sign(+1) -> reject
     assert apply_control(claim, "z") is False
+
+def _claim(target, claim_sign, conf_true, is_true, sample):
+    return {"target": target, "claim_sign": claim_sign, "confounder_true": conf_true,
+            "label_is_true": is_true, "sample": sample}
+
+def _trivial_sample():
+    return {"x1": [0.0, 1.0], "x2": [0.0, 1.0], "layer": [0.0, 0.0], "energy": [0.0, -1.0]}
+
+def test_accept_all_accepts():
+    c = _claim("x1", 1, "x2", False, _trivial_sample())
+    r = review_one(c, accept_all_critic)
+    assert r["accepted"] is True and r["verdict"] == "supported"
+
+def test_random_critic_in_space_and_seeded():
+    rng = np.random.default_rng(0)
+    critic = random_critic(rng)
+    c = _claim("x1", 1, "x2", False, _trivial_sample())
+    for _ in range(20):
+        out = critic(c)
+        assert out["verdict"] in ("supported", "confounded")
+        if out["verdict"] == "confounded":
+            assert out["confounder"] in ("x2", "layer")   # never the target
+
+def test_score_fdr_and_retention():
+    # 4 claims: 2 true, 2 false. accept_all -> FDR 0.5, retention 1.0
+    claims = [_claim("x1", 1, "x2", True, _trivial_sample()),
+              _claim("x1", 1, "x2", True, _trivial_sample()),
+              _claim("x1", 1, "x2", False, _trivial_sample()),
+              _claim("x1", 1, "x2", False, _trivial_sample())]
+    reviews = review_batch(claims, accept_all_critic)
+    s = score(claims, reviews)
+    assert s["n_accepted"] == 4
+    assert abs(s["fdr"] - 0.5) < 1e-9
+    assert abs(s["retention"] - 1.0) < 1e-9
+    assert abs(s["base_rate_false"] - 0.5) < 1e-9
+
+def test_review_records_fallback_on_garbage():
+    def garbage_critic(claim): return {"verdict": "???"}
+    c = _claim("x1", 1, "x2", False, _trivial_sample())
+    r = review_one(c, garbage_critic)
+    assert r["fallback"] is True and r["accepted"] is True   # invalid -> supported fallback
