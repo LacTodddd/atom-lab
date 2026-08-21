@@ -35,9 +35,22 @@ def main(argv=None):
 
     llm = make_llm_critic(a.model)
     if llm is not None:
+        import anthropic  # already imported successfully inside make_llm_critic
         try:
+            # anthropic.Anthropic() doesn't validate credentials until the first
+            # request (it defers to header-building), so construction can succeed
+            # with no key configured. AnthropicError covers real API-level auth/
+            # connection failures; the no-credential case specifically raises a
+            # bare TypeError from header validation (not an AnthropicError) with
+            # a stable "Could not resolve authentication method" message, so it's
+            # matched by content rather than type. Any other error (a real bug in
+            # the LLM path) propagates instead of being silently mislabeled.
             arms["llm"] = score(claims, review_batch(claims, llm))
-        except Exception as e:                  # auth resolves lazily on first call -> skip cleanly
+        except anthropic.AnthropicError as e:
+            print(f"[run_critic] LLM arm disabled: {e}")
+        except TypeError as e:
+            if "authentication method" not in str(e):
+                raise
             print(f"[run_critic] LLM arm disabled: {e}")
 
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
