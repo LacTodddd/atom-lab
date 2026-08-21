@@ -221,8 +221,8 @@ instead of failing.
 
 | Reviewer | accuracy | precision | recall | base rate (better-in-gap) |
 |----------|---------:|----------:|-------:|---------------------------:|
-| baseline | 0.633 | 0.000 | 0.000 | 0.367 |
-| heuristic | 0.633 | 0.000 | 0.000 | 0.367 |
+| baseline | 0.750 | 0.000 | 0.000 | 0.250 |
+| heuristic | 0.883 | 0.900 | 0.600 | 0.250 |
 | llm | — not run — | — not run — | — not run — | — |
 
 **⚠️ Honest note:** this environment has no `ANTHROPIC_API_KEY` and no `ant` profile configured, so the
@@ -230,9 +230,9 @@ CLI printed `[run_litreview] LLM arm disabled: "Could not resolve authentication
 of api_key, auth_token, or credentials to be set. Or for one of the \`X-Api-Key\` or \`Authorization\`
 headers to be explicitly omitted"` and `results/litreview_report.json` was written with only the
 `baseline` and `heuristic` arms. The **LLM comparison was not run here** — no LLM numbers are
-fabricated; it's left for you to run with your own key. On this seed the trend heuristic never
-predicted "better in the gap" either, so it ties the always-False baseline exactly — a null result,
-and a valid one.
+fabricated; it's left for you to run with your own key. The trend heuristic clears the always-False
+baseline (88.3% vs 75.0% accuracy, 60% recall vs 0%) by reading whether energy is still improving
+near the explored boundary — a real, non-trivial signal on this world.
 
 **Caveats:** the baseline is the majority class, so beating it is the real bar — the LLM can score
 *below* it. The heuristic is a non-LLM reference, not a ceiling the LLM must clear. The LLM is

@@ -77,7 +77,7 @@ def build_prompt(paper):
         f"Best structure found in the study: config {paper['best_config']} at energy "
         f"{paper['best_energy']:.3f} eV (lower energy = more stable).",
         f"The unexplored region lies on the {gap} side of {paper['axis']}.",
-        "Reported best energy across sub-bands of the explored region, ordered FAR from the gap "
+        "Reported best energy across distinct values of the split feature in the explored region, ordered FAR from the gap "
         f"to NEAR the gap boundary: [{trend}].",
         "Question: does the unexplored region likely contain a structure with LOWER energy than the "
         "study's best? Reason about whether energy is still improving where the study stopped.",

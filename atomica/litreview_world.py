@@ -3,7 +3,7 @@ subset of the Cu-Au 924 orderings) plus a ground-truth label. Reuses P4's critic
 import numpy as np
 from atomica.critic_world import build_world, features, FEATURE_NAMES
 
-def make_paper(world, seed, min_frac=0.3, max_frac=0.7, n_subbands=4):
+def make_paper(world, seed, min_frac=0.3, max_frac=0.7):
     rng = np.random.default_rng(seed)
     F, E, configs = world["features"], world["energy"], world["configs"]
     n = len(E)
@@ -21,17 +21,15 @@ def make_paper(world, seed, min_frac=0.3, max_frac=0.7, n_subbands=4):
     ei = np.where(explored)[0]
     best_local = int(ei[np.argmin(E[ei])])
     best_energy = float(E[best_local])
-    # boundary_trend: best energy in ordered sub-bands of the explored subset, far->near the gap.
-    z_expl = zc[explored]
-    edges = np.quantile(z_expl, np.linspace(0.0, 1.0, n_subbands + 1))
+    # boundary_trend: min energy per DISTINCT axis value present in the explored subset,
+    # ordered far-from-gap -> near-the-gap. (Quantile sub-bands collapse on discrete features.)
+    vals = sorted(int(v) for v in set(zc[explored]))
+    order = vals if gap_high else vals[::-1]
     trend = []
-    for b in range(n_subbands):
-        upper = (z_expl <= edges[b + 1]) if b == n_subbands - 1 else (z_expl < edges[b + 1])
-        m = (z_expl >= edges[b]) & upper
-        idx = ei[m]
-        trend.append(float(E[idx].min()) if len(idx) else float(best_energy))
-    if not gap_high:                          # gap on the low side -> nearest-gap sub-band is lowest z
-        trend = trend[::-1]                    # reorder so trend[-1] is nearest the gap
+    for v in order:
+        m = explored & (zc == v)
+        if m.any():
+            trend.append(float(E[m].min()))
     gap_indices = np.where(gap)[0]
     gap_best = float(E[gap_indices].min()) if len(gap_indices) else float(best_energy)
     better_in_gap = bool(len(gap_indices) > 0 and gap_best < best_energy - 1e-9)
@@ -52,7 +50,7 @@ def generate_papers(world, n_papers, seed0=0, min_frac=0.3, max_frac=0.7, min_co
     while len(papers) < n_papers:
         p = make_paper(world, seed, min_frac, max_frac)
         seed += 1
-        if p["n_explored"] < min_count or (n - p["n_explored"]) < min_count:
-            continue                        # explored or gap too small
+        if p["n_explored"] < min_count or (n - p["n_explored"]) < min_count or len(p["boundary_trend"]) < 2:
+            continue                        # explored or gap too small, or trend too short to extrapolate
         papers.append(p)
     return papers

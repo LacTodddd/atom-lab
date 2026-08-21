@@ -16,7 +16,7 @@ def test_make_paper_shape_and_types():
     assert p["axis"] in ("x1", "x2", "layer")
     assert isinstance(p["best_config"], list) and len(p["best_config"]) == 6
     assert isinstance(p["best_energy"], float)
-    assert isinstance(p["boundary_trend"], list) and len(p["boundary_trend"]) == 4
+    assert isinstance(p["boundary_trend"], list) and len(p["boundary_trend"]) >= 2
     assert p["gap_side"] in ("high", "low")
     assert isinstance(p["better_in_gap"], bool)
 
