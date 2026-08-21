@@ -4,7 +4,7 @@
 
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![python](https://img.shields.io/badge/python-3.13-blue)
-![tests](https://img.shields.io/badge/tests-49%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-66%20passing-brightgreen)
 
 ATOMICA asks a single, cheat-proof question and answers it with numbers you can check: **under an equal compute budget, can AI/ML-guided search find good atomic configurations faster than classical baselines?** It is built in slices — each one a small, self-contained, measurable result.
 
@@ -16,6 +16,7 @@ ATOMICA asks a single, cheat-proof question and answers it with numbers you can 
 - 🔬 **P2 — real ML potential (MACE):** on a Cu-Au alloy-ordering problem, AI-guided search **wins** — fewer evaluations, higher hit rate.
 - 🎯 Every result is validated against **ground truth** (known global minima / brute force), so "it worked" is never a matter of opinion.
 - 🤖 **P3 — LLM enters the loop, bounded:** it proposes hyperparameters as validated JSON, never physics; see below for the honestly-reported result.
+- 🧑‍⚖️ **P4 — LLM as critic, not oracle:** it names a suspected confounder as validated JSON; a harness-side stratified control, not the LLM, decides accept/reject.
 
 ---
 
@@ -134,6 +135,61 @@ negative result was.
 
 ---
 
+## 🧑‍⚖️ P4 — Does an LLM critic catch false claims better than random or none?
+
+**Problem:** reuse P2's Cu-Au world (the same 924-config brute-forced ground truth). A deterministic
+"scientist" draws a confounded, biased 40-config sample and emits a claim of the form *"feature X
+drives energy"* — some claims are TRUE, some are FALSE (the apparent effect is really driven by a
+different, correlated feature). An LLM critic reads only the claim and the sample, never the physics,
+and returns a validated strict-tool JSON verdict: `supported`, or `confounded` (naming which feature
+it thinks is the confounder). A within-sample **stratified control** — bin the sample on the named
+confounder, re-check the sign of the target's effect within each bin — decides accept/reject by
+sign-flip: harness logic, not the LLM's say-so. Everything is checked against the same P2 ground
+truth, so a claim's TRUE/FALSE label is never a matter of opinion.
+
+Three critics compete on the same 60 labeled claims:
+
+| Critic | How it decides |
+|--------|-----------------|
+| **none** | Accepts every claim (no critic at all) |
+| **random** | Names a random confounder and applies the same stratified control |
+| **llm** | Reads the claim + sample, names a confounder via validated tool call, same control |
+
+```bash
+python3 -m atomica.run_critic --n-claims 60 --n 40 --strength 2.0 --seed 0 --out results
+```
+
+The **measured question**: on 60 claims, does the LLM critic's false-discovery rate (FDR — fraction
+of accepted claims that are actually FALSE) fall below `none` and `random`, at matched true-claim
+retention? The LLM arm needs **your own** `ANTHROPIC_API_KEY` (or an `ant auth login` profile) — the
+code never contains a key. Without one, the CLI still runs `none` + `random` and prints
+`[run_critic] LLM arm disabled: ...` instead of failing.
+
+**Result** (60 claims, `n=40`, `strength=2.0`, seed 0):
+
+| Critic | FDR | retention |
+|--------|----:|----------:|
+| none | 0.233 | 1.000 |
+| random | 0.179 | 1.000 |
+| llm | — not run — | — not run — |
+
+**⚠️ Honest note:** this environment has no `ANTHROPIC_API_KEY` and no `ant` profile configured, so
+the CLI printed `[run_critic] LLM arm disabled: "Could not resolve authentication method. Expected
+one of api_key, auth_token, or credentials to be set. Or for one of the \`X-Api-Key\` or
+\`Authorization\` headers to be explicitly omitted"` and `results/critic_report.json` was written with
+only the `none` and `random` arms. The **LLM-vs-random comparison was not run here** — no LLM numbers
+are fabricated. It's left for you to run with your own key; a null result (LLM ≈ random) would be
+just as valid as Slice 1's negative result.
+
+**Caveats:** the LLM is a stochastic critic — re-running can shift its verdicts. The confound-fix
+ceiling is **below 100%** even in principle: some FALSE claims here are small-sample noise rather than
+a genuine confound, so no critic (LLM included) can catch every one via confounder-naming alone. The
+world is a small 12-site lattice, so these FDR numbers won't generalize to larger search spaces
+as-is. See the design spec:
+[`docs/superpowers/specs/2026-08-21-atomica-p4-llm-critic-design.md`](docs/superpowers/specs/2026-08-21-atomica-p4-llm-critic-design.md).
+
+---
+
 ## 🚀 Quickstart
 
 ```bash
@@ -149,6 +205,9 @@ python3 -m atomica.run_alloy --budget 100 --seeds 5 --out results/alloy
 
 # P3 — LLM-vs-random hyperparameter tuning (needs ANTHROPIC_API_KEY for the LLM arm; runs random-vs-default without one)
 python3 -m atomica.run_tune --rounds 6 --tune-seeds 2 --eval-seeds 5 --budget 120 --trajectories 3 --out results
+
+# P4 — LLM critic false-discovery benchmark (needs ANTHROPIC_API_KEY for the LLM arm; runs none-vs-random without one)
+python3 -m atomica.run_critic --n-claims 60 --n 40 --strength 2.0 --seed 0 --out results
 
 # Tests
 python3 -m pytest -q
@@ -172,7 +231,10 @@ atomica/
 ├── alloy_search.py   # random / genetic / active-learning over Au/Cu orderings (composition-preserving)
 ├── run_alloy.py      # CLI — P2 (Cu-Au alloy ordering)
 ├── strategist.py     # bounded param space, validation, tune/compare loop, LLM proposer (structured tool call)
-└── run_tune.py       # CLI — P3 (LLM-vs-random hyperparameter tuning)
+├── run_tune.py       # CLI — P3 (LLM-vs-random hyperparameter tuning)
+├── critic_world.py   # P4: Cu-Au features, stratified controlled-effect estimator, biased scientist + claims
+├── critic.py         # P4: strict-tool critique validation, stratified sign-flip control, arm scoring
+└── run_critic.py     # CLI — P4 (LLM critic false-discovery benchmark)
 ```
 
 Design specs and implementation plans live under [`docs/superpowers/`](docs/superpowers/).
@@ -188,7 +250,7 @@ The computational core comes first; LLM work is deliberately last — it has the
 | **P1** | Search benchmark on a toy LJ potential | ✅ done |
 | **P2** | Real ML potential (MACE-MP-0) on a Cu-Au alloy-ordering problem | ✅ done |
 | **P3** | An LLM *strategist* that reads results and proposes the next experiment (never touches the physics) | ✅ done |
-| **P4** | An LLM *critic* proposing control / falsification experiments | 🔒 planned |
+| **P4** | An LLM *critic* proposing control / falsification experiments | ✅ done |
 | **P5** | A literature agent (paper → gaps → hypotheses) feeding P3 | 🔒 planned |
 
 ---
