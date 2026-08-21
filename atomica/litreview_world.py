@@ -6,7 +6,6 @@ from atomica.critic_world import build_world, features, FEATURE_NAMES
 def make_paper(world, seed, min_frac=0.3, max_frac=0.7):
     rng = np.random.default_rng(seed)
     F, E, configs = world["features"], world["energy"], world["configs"]
-    n = len(E)
     axis = str(rng.choice(FEATURE_NAMES))
     zc = F[axis].astype(float)
     frac = float(rng.uniform(min_frac, max_frac))
@@ -28,8 +27,7 @@ def make_paper(world, seed, min_frac=0.3, max_frac=0.7):
     trend = []
     for v in order:
         m = explored & (zc == v)
-        if m.any():
-            trend.append(float(E[m].min()))
+        trend.append(float(E[m].min()))
     gap_indices = np.where(gap)[0]
     gap_best = float(E[gap_indices].min()) if len(gap_indices) else float(best_energy)
     better_in_gap = bool(len(gap_indices) > 0 and gap_best < best_energy - 1e-9)
