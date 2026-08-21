@@ -4,7 +4,7 @@
 
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![python](https://img.shields.io/badge/python-3.13-blue)
-![tests](https://img.shields.io/badge/tests-79%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-80%20passing-brightgreen)
 
 ATOMICA asks a single, cheat-proof question and answers it with numbers you can check: **under an equal compute budget, can AI/ML-guided search find good atomic configurations faster than classical baselines?** It is built in slices — each one a small, self-contained, measurable result.
 
@@ -80,7 +80,7 @@ python3 -m atomica.run_alloy --budget 100 --seeds 5 --out results/alloy
 
 **✅ Verdict:** active-learning **wins** — reaches the true ground state every seed, in the fewest evaluations. The opposite of Slice 1: on a real potential with a small, cheat-proof search space, the surrogate delivers a genuine, measured speedup.
 
-> 🧲 **Physics check:** the ground state is a pure **L1₀ layering** (alternating Cu / Au (100) planes) — exactly the real CuAu-I ordered intermetallic. That config, `[0, 1, 4, 5, 8, 9]`, was found from **rigid single-point energies**; as a post-hoc check (never part of the search or the ground truth), we relax it once with FIRE. Measured: rigid energy **−44.36847 eV**, relaxed energy **−44.36847 eV** — atoms move **0.0 Å** and the energy drops **0.0 eV**. Every atom's local environment in this ordering is centrosymmetric, so the per-atom forces are already zero (~1e-15 eV/Å, i.e. machine precision) — the rigid-lattice approximation isn't just close here, it's exact.
+> 🧲 **Physics check:** the ground state is a pure **L1₀ layering** (alternating Cu / Au (100) planes) — exactly the real CuAu-I ordered intermetallic. That config, `[0, 1, 4, 5, 8, 9]`, was found from **rigid single-point energies**, so as a post-hoc check (never part of the search or the ground truth) we relax it once with FIRE: atoms move **0.0 Å** and the energy drops **0.0 eV**. Every atom there sits in a centrosymmetric environment, so the forces are already zero (~1e-15 eV/Å, machine precision). The check has teeth — relaxing a *non*-symmetric ordering instead drops **1.74 eV** and moves atoms **0.36 Å** — so the rigid-lattice approximation isn't merely close for this ground state, it's exact.
 
 ---
 
@@ -273,6 +273,8 @@ python3 -m pytest -q
 ```
 
 > Tip: give the two CLIs separate `--out` directories (as above); both default to `results/`, so sharing it makes each regenerate the other's figures.
+>
+> About `results/`: the convergence **figures are committed** so the numbers above are checkable without re-running anything. The JSON reports (`tune_report.json`, `critic_report.json`, `litreview_report.json`, ground-truth caches) are **gitignored** — each CLI regenerates its own on the next run.
 
 ---
 
@@ -296,7 +298,8 @@ atomica/
 ├── run_critic.py     # CLI — P4 (LLM critic false-discovery benchmark)
 ├── litreview_world.py # P5: synthetic paper generation (explored subset, trend, best-in-gap label) over the Cu-Au world
 ├── litreview.py      # P5: strict-tool prediction validation, baseline/heuristic/LLM reviewers, arm scoring
-└── run_litreview.py  # CLI — P5 (literature-gap extrapolation benchmark)
+├── run_litreview.py  # CLI — P5 (literature-gap extrapolation benchmark)
+└── llm.py            # shared Anthropic plumbing: credential-gated LLM arm + strict-tool call (P3/P4/P5)
 ```
 
 Design specs and implementation plans live under [`docs/superpowers/`](docs/superpowers/).
@@ -313,7 +316,7 @@ The computational core comes first; LLM work is deliberately last — it has the
 | **P2** | Real ML potential (MACE-MP-0) on a Cu-Au alloy-ordering problem | ✅ done |
 | **P3** | An LLM *strategist* that reads results and proposes the next experiment (never touches the physics) | ✅ done |
 | **P4** | An LLM *critic* proposing control / falsification experiments | ✅ done |
-| **P5** | A literature agent (paper → gaps → hypotheses) feeding P3 | ✅ done |
+| **P5** | A literature agent that reads a study and reasons about the region it *didn't* explore | ✅ done |
 
 ---
 

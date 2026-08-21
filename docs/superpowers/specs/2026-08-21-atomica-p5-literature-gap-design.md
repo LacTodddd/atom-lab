@@ -76,9 +76,12 @@ and reuses them.
    - `axis` = `Z`; a human-readable `region` description (e.g. "orderings with x2 in the low range");
      `n_explored`;
    - `best_config` + `best_energy` = the minimum-energy ordering within the explored subset;
-   - `boundary_trend` = the best (min) energy in each of ~3–4 ordered sub-bands of `Z` **within the
+   - `boundary_trend` = the best (min) energy at each **distinct value of `Z` present within the
      explored subset**, ordered from farthest to nearest the gap boundary — the signal a reader would
      use to judge whether energy is still improving where the study stopped.
+     (Design note: this was first specified as ~3–4 *quantile sub-bands*. The features are small
+     integers, so quantile bins collapse and the trend came out flat, leaving the heuristic and the
+     LLM with no signal at all. Binning by distinct value is the shipped fix — see §9.)
 3. The **ground-truth label** `better_in_gap` (bool) = does any config in the gap have energy below
    `best_energy` (⟺ the global minimum is in the gap). **Computed by the harness, never shown to any
    arm.**
@@ -99,7 +102,7 @@ returning `{better_in_gap: boolean}`. Every output is validated; an unparseable/
 back to FALSE (recorded `fallback: true`). The LLM output is parsed as data, never executed.
 
 **The heuristic** (`heuristic` arm) is a deterministic reference over the same `boundary_trend`: if the
-per-sub-band best energy is still decreasing at the sub-band nearest the gap boundary (energy improving
+best energy is still decreasing in the half of the trend nearest the gap boundary (energy improving
 where the study stopped), predict TRUE, else FALSE. It uses the identical information handed to the
 LLM, so "LLM ≈ heuristic" means the LLM reads the reported signal as well as the explicit rule does.
 
