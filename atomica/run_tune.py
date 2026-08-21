@@ -1,16 +1,12 @@
 import argparse, json
 from pathlib import Path
 from atomica.strategist import tune, compare, random_proposer, llm_proposer, MODEL
+from atomica.llm import make_llm_arm, run_llm_arm
 import numpy as np
 
 def make_llm_proposer(model):
     """Return an llm_proposer bound to a real client, or None if no credential/SDK."""
-    try:
-        import anthropic
-        return llm_proposer(anthropic.Anthropic(), model=model)
-    except Exception as e:                     # missing key/sdk -> skip the LLM arm
-        print(f"[run_tune] LLM arm disabled: {e}")
-        return None
+    return make_llm_arm(llm_proposer, model, "run_tune")
 
 def _best_over_trajectories(make_proposer, trajectories, rounds, tune_seeds, budget):
     best_overall, best_score = None, None
@@ -42,24 +38,10 @@ def main(argv=None):
 
     llm = make_llm_proposer(a.model)
     if llm is not None:
-        import anthropic  # already imported successfully inside make_llm_proposer
-        try:
-            # anthropic.Anthropic() doesn't validate credentials until the first
-            # request (it defers to header-building), so construction can succeed
-            # with no key configured. AnthropicError covers real API-level auth/
-            # connection failures; the no-credential case specifically raises a
-            # bare TypeError from header validation (not an AnthropicError) with
-            # a stable "Could not resolve authentication method" message, so it's
-            # matched by content rather than type. Any other error (a real bug in
-            # the LLM path) propagates instead of being silently mislabeled.
-            best["llm"] = _best_over_trajectories(
-                lambda t: llm, a.trajectories, a.rounds, tune_seeds, a.budget)
-        except anthropic.AnthropicError as e:
-            print(f"[run_tune] LLM arm disabled: {e}")
-        except TypeError as e:
-            if "authentication method" not in str(e):
-                raise
-            print(f"[run_tune] LLM arm disabled: {e}")
+        res = run_llm_arm("run_tune", lambda: _best_over_trajectories(
+            lambda t: llm, a.trajectories, a.rounds, tune_seeds, a.budget))
+        if res is not None:
+            best["llm"] = res
 
     comparison = compare(best, eval_seeds, a.budget)
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)

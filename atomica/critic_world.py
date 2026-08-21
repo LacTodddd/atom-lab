@@ -6,25 +6,28 @@ from atomica import alloy
 N_SITES, N_AU = 12, 6
 FEATURE_NAMES = ["x1", "x2", "layer"]
 
+_GEOM = None
 def _geometry():
-    at = alloy.build_lattice(N_SITES)
-    D = at.get_all_distances(mic=True)
-    dv = np.unique(np.round(D[D > 1e-6], 3))
-    s1, s2 = float(dv[0]), float(dv[1])
-    zc = np.round(at.get_positions()[:, 2], 2)
-    layer0 = list(np.where(zc == sorted(np.unique(zc))[0])[0])
-    return D, s1, s2, layer0
-
-_D, _S1, _S2, _LAYER0 = _geometry()
+    global _GEOM
+    if _GEOM is None:
+        at = alloy.build_lattice(N_SITES)
+        D = at.get_all_distances(mic=True)
+        dv = np.unique(np.round(D[D > 1e-6], 3))
+        s1, s2 = float(dv[0]), float(dv[1])
+        zc = np.round(at.get_positions()[:, 2], 2)
+        layer0 = list(np.where(zc == sorted(np.unique(zc))[0])[0])
+        _GEOM = (D, s1, s2, layer0)
+    return _GEOM
 
 def features(config):
+    D, s1, s2, layer0 = _geometry()
     au = np.zeros(N_SITES, bool); au[list(config)] = True
     def pairs(shell):
-        return int(sum(au[i] and au[j] and abs(_D[i, j] - shell) < 1e-2
+        return int(sum(au[i] and au[j] and abs(D[i, j] - shell) < 1e-2
                        for i in range(N_SITES) for j in range(i + 1, N_SITES)))
-    return {"x1": pairs(_S1), "x2": pairs(_S2), "layer": int(au[_LAYER0].sum())}
+    return {"x1": pairs(s1), "x2": pairs(s2), "layer": int(au[layer0].sum())}
 
-def _sign(v, tol=1e-9):
+def sign(v, tol=1e-9):
     return 0 if abs(v) < tol else (1 if v > 0 else -1)
 
 def _contrast(Xs, Es):
@@ -75,7 +78,7 @@ def build_world(evaluate_fn=alloy.evaluate, cache_path=None):
     return world
 
 def truth_sign(target, confounder, world, kbins=3):
-    return _sign(stratified_effect(world["features"][target],
+    return sign(stratified_effect(world["features"][target],
                                    world["features"][confounder],
                                    world["energy"], kbins))
 
@@ -90,7 +93,7 @@ def make_claim(world, seed, n=40, strength=2.0):
     F, E = world["features"], world["energy"]
     w = np.exp(strength * _z(F[target]) * _z(F[conf])); w = w / w.sum()
     idx = rng.choice(len(E), size=n, replace=False, p=w)
-    claim_sign = _sign(_contrast(F[target][idx], E[idx]))
+    claim_sign = sign(_contrast(F[target][idx], E[idx]))
     truth = truth_sign(target, conf, world)
     sample = {name: F[name][idx].tolist() for name in FEATURE_NAMES}
     sample["energy"] = E[idx].tolist()

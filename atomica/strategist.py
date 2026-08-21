@@ -2,6 +2,7 @@ import numpy as np
 from atomica.potential import relax
 from atomica.search import active_learning_search
 from atomica.plot import KNOWN_MINIMA, evals_to_target
+from atomica.llm import call_strict_tool
 
 PARAM_SPACE = {"k_acq": (0.0, 3.0), "pool": [40, 80, 160], "n_init": [5, 10, 20]}
 DEFAULT_PARAMS = {"k_acq": 1.0, "pool": 100, "n_init": 10}
@@ -88,15 +89,7 @@ def build_prompt(history):
 
 def llm_proposer(client, model=MODEL):
     def propose(history):
-        resp = client.messages.create(
-            model=model, max_tokens=512,
-            tools=[_TOOL], tool_choice={"type": "tool", "name": "propose_params"},
-            messages=[{"role": "user", "content": build_prompt(history)}],
-        )
-        for block in resp.content:
-            if getattr(block, "type", None) == "tool_use" and block.name == "propose_params":
-                return block.input
-        raise ValueError("no propose_params tool_use in response")
+        return call_strict_tool(client, model, _TOOL, build_prompt(history))
     return propose
 
 def compare(best_by_tuner, eval_seeds, budget, n=38):

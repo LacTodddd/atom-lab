@@ -6,15 +6,11 @@ from atomica.litreview_world import build_world, generate_papers
 from atomica.litreview import (
     baseline_reviewer, heuristic_reviewer, llm_reviewer, review_batch, score, MODEL,
 )
+from atomica.llm import make_llm_arm, run_llm_arm
 
 def make_llm_reviewer(model):
     """Return an llm_reviewer bound to a real client, or None if no credential/SDK."""
-    try:
-        import anthropic
-        return llm_reviewer(anthropic.Anthropic(), model=model)
-    except Exception as e:                      # missing key/sdk -> skip the LLM arm
-        print(f"[run_litreview] LLM arm disabled: {e}")
-        return None
+    return make_llm_arm(llm_reviewer, model, "run_litreview")
 
 def main(argv=None):
     p = argparse.ArgumentParser(description="ATOMICA P5 literature-gap extrapolation benchmark (Cu-Au)")
@@ -33,15 +29,9 @@ def main(argv=None):
 
     llm = make_llm_reviewer(a.model)
     if llm is not None:
-        import anthropic
-        try:
-            arms["llm"] = score(papers, review_batch(papers, llm))
-        except anthropic.AnthropicError as e:   # auth resolves lazily on first call -> skip cleanly
-            print(f"[run_litreview] LLM arm disabled: {e}")
-        except TypeError as e:
-            if "authentication method" not in str(e):
-                raise
-            print(f"[run_litreview] LLM arm disabled: {e}")
+        res = run_llm_arm("run_litreview", lambda: score(papers, review_batch(papers, llm)))
+        if res is not None:
+            arms["llm"] = res
 
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     (out / "litreview_report.json").write_text(json.dumps(

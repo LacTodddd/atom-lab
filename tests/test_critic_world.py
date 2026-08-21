@@ -1,6 +1,6 @@
 import numpy as np
 from atomica.critic_world import (
-    features, stratified_effect, _sign, _contrast, FEATURE_NAMES, N_SITES, N_AU,
+    features, stratified_effect, sign, _contrast, FEATURE_NAMES, N_SITES, N_AU,
     build_world, truth_sign, make_claim, generate_claims,
 )
 
@@ -11,7 +11,7 @@ def test_features_shape_and_range():
     assert 0 <= f["layer"] <= 4          # one (100) plane holds 4 sites
 
 def test_sign_and_contrast():
-    assert _sign(-0.5) == -1 and _sign(0.5) == 1 and _sign(0.0) == 0
+    assert sign(-0.5) == -1 and sign(0.5) == 1 and sign(0.0) == 0
     # high-X rows carry higher energy -> positive contrast
     Xs = np.array([0, 0, 1, 1]); Es = np.array([-2.0, -2.0, -1.0, -1.0])
     assert _contrast(Xs, Es) > 0

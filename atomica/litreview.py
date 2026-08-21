@@ -1,6 +1,7 @@
 """P5 literature reviewer: validate a structured boolean prediction, provide a paper-blind
 baseline, a non-LLM trend heuristic, and (later) the LLM reviewer; score accuracy/precision/recall.
 The reviewer proposes; the harness checks against ground truth."""
+from atomica.llm import call_strict_tool
 
 PREDICT_TOOL = {
     "name": "predict_gap",
@@ -87,13 +88,5 @@ def build_prompt(paper):
 
 def llm_reviewer(client, model=MODEL):
     def reviewer(view):
-        resp = client.messages.create(
-            model=model, max_tokens=512,
-            tools=[PREDICT_TOOL], tool_choice={"type": "tool", "name": "predict_gap"},
-            messages=[{"role": "user", "content": build_prompt(view)}],
-        )
-        for block in resp.content:
-            if getattr(block, "type", None) == "tool_use" and block.name == "predict_gap":
-                return block.input
-        raise ValueError("no predict_gap tool_use in response")
+        return call_strict_tool(client, model, PREDICT_TOOL, build_prompt(view))
     return reviewer

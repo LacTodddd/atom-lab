@@ -1,6 +1,7 @@
 """P4 critic: validate a structured verdict, apply a within-sample stratified
 control (sign-flip => reject), and score arms. LLM proposes; harness decides."""
-from atomica.critic_world import FEATURE_NAMES, stratified_effect, _sign
+from atomica.critic_world import FEATURE_NAMES, stratified_effect, sign
+from atomica.llm import call_strict_tool
 
 VALID_VERDICTS = ("supported", "confounded")
 
@@ -42,7 +43,7 @@ def apply_control(claim, confounder):
     if confounder is None or confounder == claim["target"]:
         return True
     s = claim["sample"]
-    controlled = _sign(stratified_effect(s[claim["target"]], s[confounder], s["energy"]))
+    controlled = sign(stratified_effect(s[claim["target"]], s[confounder], s["energy"]))
     if controlled != 0 and controlled != claim["claim_sign"]:
         return False
     return True
@@ -114,13 +115,5 @@ def build_prompt(claim):
 
 def llm_critic(client, model=MODEL):
     def critic(claim):
-        resp = client.messages.create(
-            model=model, max_tokens=512,
-            tools=[CRITIC_TOOL], tool_choice={"type": "tool", "name": "critique_claim"},
-            messages=[{"role": "user", "content": build_prompt(claim)}],
-        )
-        for block in resp.content:
-            if getattr(block, "type", None) == "tool_use" and block.name == "critique_claim":
-                return block.input
-        raise ValueError("no critique_claim tool_use in response")
+        return call_strict_tool(client, model, CRITIC_TOOL, build_prompt(claim))
     return critic

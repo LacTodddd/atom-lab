@@ -6,15 +6,11 @@ from atomica.critic_world import build_world, generate_claims
 from atomica.critic import (
     accept_all_critic, random_critic, llm_critic, review_batch, score, MODEL,
 )
+from atomica.llm import make_llm_arm, run_llm_arm
 
 def make_llm_critic(model):
     """Return an llm_critic bound to a real client, or None if no credential/SDK."""
-    try:
-        import anthropic
-        return llm_critic(anthropic.Anthropic(), model=model)
-    except Exception as e:                      # missing key/sdk -> skip the LLM arm
-        print(f"[run_critic] LLM arm disabled: {e}")
-        return None
+    return make_llm_arm(llm_critic, model, "run_critic")
 
 def main(argv=None):
     p = argparse.ArgumentParser(description="ATOMICA P4 LLM-critic false-discovery benchmark (Cu-Au)")
@@ -35,23 +31,9 @@ def main(argv=None):
 
     llm = make_llm_critic(a.model)
     if llm is not None:
-        import anthropic  # already imported successfully inside make_llm_critic
-        try:
-            # anthropic.Anthropic() doesn't validate credentials until the first
-            # request (it defers to header-building), so construction can succeed
-            # with no key configured. AnthropicError covers real API-level auth/
-            # connection failures; the no-credential case specifically raises a
-            # bare TypeError from header validation (not an AnthropicError) with
-            # a stable "Could not resolve authentication method" message, so it's
-            # matched by content rather than type. Any other error (a real bug in
-            # the LLM path) propagates instead of being silently mislabeled.
-            arms["llm"] = score(claims, review_batch(claims, llm))
-        except anthropic.AnthropicError as e:
-            print(f"[run_critic] LLM arm disabled: {e}")
-        except TypeError as e:
-            if "authentication method" not in str(e):
-                raise
-            print(f"[run_critic] LLM arm disabled: {e}")
+        res = run_llm_arm("run_critic", lambda: score(claims, review_batch(claims, llm)))
+        if res is not None:
+            arms["llm"] = res
 
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     (out / "critic_report.json").write_text(json.dumps(
