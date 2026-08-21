@@ -45,6 +45,14 @@ def test_brute_force_finds_min_on_toy():
     assert cfg == (0, 1)
     assert e == 1.0
 
+def test_relax_config_reports_a_physicality_check():
+    from atomica.alloy import relax_config
+    r = relax_config((0, 1, 4, 5, 8, 9), steps=5)
+    assert set(r) == {"rigid_energy", "relaxed_energy", "energy_drop", "max_displacement"}
+    assert r["relaxed_energy"] <= r["rigid_energy"] + 1e-9   # relaxation cannot raise the energy
+    assert r["energy_drop"] >= -1e-9
+    assert r["max_displacement"] >= 0.0
+
 def test_brute_force_caches(tmp_path):
     calls = {"n": 0}
     def fake(config, n_sites=4):

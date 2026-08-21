@@ -35,6 +35,27 @@ def evaluate(config, n_sites=N_SITES):
     at.calc = _calc()
     return float(at.get_potential_energy())
 
+def relax_config(config, n_sites=N_SITES, fmax=0.02, steps=200):
+    """Relax one configuration's atomic positions (cell fixed) as a post-hoc physicality check.
+
+    The P2 search uses rigid single-point energies; this answers "would letting the atoms move
+    change the story?" for the single best configuration. Never used inside the search.
+
+    Returns {"rigid_energy", "relaxed_energy", "energy_drop", "max_displacement"} (eV, A).
+    """
+    from ase.optimize import FIRE
+    at = build_lattice(n_sites)
+    at.symbols = config_symbols(config, n_sites)
+    at.calc = _calc()
+    start = at.get_positions().copy()
+    rigid = float(at.get_potential_energy())
+    opt = FIRE(at, logfile=None)
+    opt.run(fmax=fmax, steps=steps)
+    relaxed = float(at.get_potential_energy())
+    disp = float(np.abs(at.get_positions() - start).max())
+    return {"rigid_energy": rigid, "relaxed_energy": relaxed,
+            "energy_drop": rigid - relaxed, "max_displacement": disp}
+
 _NBR = None  # directed (i, j) first-nearest-neighbour index arrays for the fixed lattice
 def _neighbours(cutoff=2.9):
     # FCC first-NN distance is a/sqrt(2) ~= 2.72 A; 2.9 A captures first NN only (second is 3.85).

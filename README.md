@@ -80,7 +80,7 @@ python3 -m atomica.run_alloy --budget 100 --seeds 5 --out results/alloy
 
 **✅ Verdict:** active-learning **wins** — reaches the true ground state every seed, in the fewest evaluations. The opposite of Slice 1: on a real potential with a small, cheat-proof search space, the surrogate delivers a genuine, measured speedup.
 
-> 🧲 **Physics check:** the ground state is a pure **L1₀ layering** (alternating Cu / Au (100) planes) — exactly the real CuAu-I ordered intermetallic. A reassuring sanity check on the MACE potential.
+> 🧲 **Physics check:** the ground state is a pure **L1₀ layering** (alternating Cu / Au (100) planes) — exactly the real CuAu-I ordered intermetallic. That config, `[0, 1, 4, 5, 8, 9]`, was found from **rigid single-point energies**; as a post-hoc check (never part of the search or the ground truth), we relax it once with FIRE. Measured: rigid energy **−44.36847 eV**, relaxed energy **−44.36847 eV** — atoms move **0.0 Å** and the energy drops **0.0 eV**. Every atom's local environment in this ordering is centrosymmetric, so the per-atom forces are already zero (~1e-15 eV/Å, i.e. machine precision) — the rigid-lattice approximation isn't just close here, it's exact.
 
 ---
 
