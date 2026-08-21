@@ -52,3 +52,60 @@ def stratified_effect(Xs, Zs, Es, kbins=3):
     if not diffs:
         return 0.0
     return float(np.average(diffs, weights=wts))
+
+import itertools, json
+from pathlib import Path
+
+def build_world(evaluate_fn=alloy.evaluate, cache_path=None):
+    if cache_path is not None and Path(cache_path).exists():
+        d = json.loads(Path(cache_path).read_text())
+        return {"configs": [tuple(c) for c in d["configs"]],
+                "features": {k: np.array(v) for k, v in d["features"].items()},
+                "energy": np.array(d["energy"])}
+    configs = list(itertools.combinations(range(N_SITES), N_AU))
+    energy = np.array([float(evaluate_fn(c)) for c in configs])
+    feats = {name: np.array([features(c)[name] for c in configs]) for name in FEATURE_NAMES}
+    world = {"configs": configs, "features": feats, "energy": energy}
+    if cache_path is not None:
+        Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(cache_path).write_text(json.dumps(
+            {"configs": [list(c) for c in configs],
+             "features": {k: v.tolist() for k, v in feats.items()},
+             "energy": energy.tolist()}))
+    return world
+
+def truth_sign(target, confounder, world, kbins=3):
+    return _sign(stratified_effect(world["features"][target],
+                                   world["features"][confounder],
+                                   world["energy"], kbins))
+
+def _z(a):
+    a = np.asarray(a, float)
+    return (a - a.mean()) / (a.std() + 1e-9)
+
+def make_claim(world, seed, n=40, strength=2.0):
+    rng = np.random.default_rng(seed)
+    a, b = rng.choice(FEATURE_NAMES, size=2, replace=False)
+    target, conf = str(a), str(b)
+    F, E = world["features"], world["energy"]
+    w = np.exp(strength * _z(F[target]) * _z(F[conf])); w = w / w.sum()
+    idx = rng.choice(len(E), size=n, replace=False, p=w)
+    claim_sign = _sign(_contrast(F[target][idx], E[idx]))
+    truth = truth_sign(target, conf, world)
+    sample = {name: F[name][idx].tolist() for name in FEATURE_NAMES}
+    sample["energy"] = E[idx].tolist()
+    return {"target": target, "claim_sign": int(claim_sign),
+            "confounder_true": conf,
+            "sample": sample,
+            "label_is_true": bool(claim_sign == truth and claim_sign != 0),
+            "seed": int(seed)}
+
+def generate_claims(world, n_claims, n=40, strength=2.0, seed0=0):
+    claims, seed = [], seed0
+    while len(claims) < n_claims:
+        c = make_claim(world, seed, n, strength)
+        seed += 1
+        if c["claim_sign"] == 0 or truth_sign(c["target"], c["confounder_true"], world) == 0:
+            continue                     # skip degenerate (no direction to test)
+        claims.append(c)
+    return claims
