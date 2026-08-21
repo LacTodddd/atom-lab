@@ -4,7 +4,7 @@
 
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![python](https://img.shields.io/badge/python-3.13-blue)
-![tests](https://img.shields.io/badge/tests-66%20passing-brightgreen)
+![tests](https://img.shields.io/badge/tests-79%20passing-brightgreen)
 
 ATOMICA asks a single, cheat-proof question and answers it with numbers you can check: **under an equal compute budget, can AI/ML-guided search find good atomic configurations faster than classical baselines?** It is built in slices — each one a small, self-contained, measurable result.
 
@@ -190,6 +190,62 @@ as-is. See the design spec:
 
 ---
 
+## 📚 P5 — literature agent (research-gap extrapolation)
+
+**Problem:** reuse the same P2/P4 Cu-Au world (the 924-config brute-forced ground truth). A synthetic
+"paper" reports the best structure and the feature→energy trend found over an *explored* subset of
+those 924 orderings. An LLM reads **only that summary** — never the physics, never the unexplored
+configs — and predicts, as validated strict-tool JSON, whether the unexplored region hides a
+lower-energy structure than the one the paper reports. The prediction is scored against the full
+924-config ground truth, so it's never a matter of opinion.
+
+Three reviewers compete on the same 60 synthetic papers:
+
+| Reviewer | How it decides |
+|----------|-----------------|
+| **baseline** | Paper-blind: always predicts "no, nothing better in the gap" (the majority class) |
+| **heuristic** | Non-LLM: compares the trend's near-boundary vs far-boundary minimum, no LLM call |
+| **llm** | Reads the paper summary, predicts via validated strict-tool call |
+
+```bash
+python3 -m atomica.run_litreview --n-papers 60 --seed 0 --out results
+```
+
+The **measured question**: on 60 papers, does the paper-reading LLM's accuracy beat the paper-blind
+baseline — and how does it compare to the non-LLM trend-heuristic reference? The LLM arm needs **your
+own** `ANTHROPIC_API_KEY` (or an `ant auth login` profile) — the code never contains a key. Without
+one, the CLI still runs `baseline` + `heuristic` and prints `[run_litreview] LLM arm disabled: ...`
+instead of failing.
+
+**Result** (60 papers, seed 0):
+
+| Reviewer | accuracy | precision | recall | base rate (better-in-gap) |
+|----------|---------:|----------:|-------:|---------------------------:|
+| baseline | 0.633 | 0.000 | 0.000 | 0.367 |
+| heuristic | 0.633 | 0.000 | 0.000 | 0.367 |
+| llm | — not run — | — not run — | — not run — | — |
+
+**⚠️ Honest note:** this environment has no `ANTHROPIC_API_KEY` and no `ant` profile configured, so the
+CLI printed `[run_litreview] LLM arm disabled: "Could not resolve authentication method. Expected one
+of api_key, auth_token, or credentials to be set. Or for one of the \`X-Api-Key\` or \`Authorization\`
+headers to be explicitly omitted"` and `results/litreview_report.json` was written with only the
+`baseline` and `heuristic` arms. The **LLM comparison was not run here** — no LLM numbers are
+fabricated; it's left for you to run with your own key. On this seed the trend heuristic never
+predicted "better in the gap" either, so it ties the always-False baseline exactly — a null result,
+and a valid one.
+
+**Caveats:** the baseline is the majority class, so beating it is the real bar — the LLM can score
+*below* it. The heuristic is a non-LLM reference, not a ceiling the LLM must clear. The LLM is
+stochastic; re-running can shift its verdicts. The world is a small 12-site lattice (924 orderings),
+so these numbers won't generalize to larger search spaces as-is. The original framing for this slice —
+does a feature→energy *sign* reverse in the unexplored region? — turned out to be moot on this world (a
+throwaway spike found 0% sign reversals, so "trend always holds" scored 100% trivially); the
+reframe used here (does the unexplored region hide a *better optimum*?) is what the world actually
+supports (see the spec's §Spike). See the design spec:
+[`docs/superpowers/specs/2026-08-21-atomica-p5-literature-gap-design.md`](docs/superpowers/specs/2026-08-21-atomica-p5-literature-gap-design.md).
+
+---
+
 ## 🚀 Quickstart
 
 ```bash
@@ -208,6 +264,9 @@ python3 -m atomica.run_tune --rounds 6 --tune-seeds 2 --eval-seeds 5 --budget 12
 
 # P4 — LLM critic false-discovery benchmark (needs ANTHROPIC_API_KEY for the LLM arm; runs none-vs-random without one)
 python3 -m atomica.run_critic --n-claims 60 --n 40 --strength 2.0 --seed 0 --out results
+
+# P5 — literature agent research-gap benchmark (needs ANTHROPIC_API_KEY for the LLM arm; runs baseline-vs-heuristic without one)
+python3 -m atomica.run_litreview --n-papers 60 --seed 0 --out results
 
 # Tests
 python3 -m pytest -q
@@ -234,7 +293,10 @@ atomica/
 ├── run_tune.py       # CLI — P3 (LLM-vs-random hyperparameter tuning)
 ├── critic_world.py   # P4: Cu-Au features, stratified controlled-effect estimator, biased scientist + claims
 ├── critic.py         # P4: strict-tool critique validation, stratified sign-flip control, arm scoring
-└── run_critic.py     # CLI — P4 (LLM critic false-discovery benchmark)
+├── run_critic.py     # CLI — P4 (LLM critic false-discovery benchmark)
+├── litreview_world.py # P5: synthetic paper generation (explored subset, trend, best-in-gap label) over the Cu-Au world
+├── litreview.py      # P5: strict-tool prediction validation, baseline/heuristic/LLM reviewers, arm scoring
+└── run_litreview.py  # CLI — P5 (literature-gap extrapolation benchmark)
 ```
 
 Design specs and implementation plans live under [`docs/superpowers/`](docs/superpowers/).
@@ -251,7 +313,7 @@ The computational core comes first; LLM work is deliberately last — it has the
 | **P2** | Real ML potential (MACE-MP-0) on a Cu-Au alloy-ordering problem | ✅ done |
 | **P3** | An LLM *strategist* that reads results and proposes the next experiment (never touches the physics) | ✅ done |
 | **P4** | An LLM *critic* proposing control / falsification experiments | ✅ done |
-| **P5** | A literature agent (paper → gaps → hypotheses) feeding P3 | 🔒 planned |
+| **P5** | A literature agent (paper → gaps → hypotheses) feeding P3 | ✅ done |
 
 ---
 
