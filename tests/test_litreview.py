@@ -1,5 +1,6 @@
 import pytest
 from atomica.litreview import validate_prediction, baseline_reviewer, heuristic_reviewer, review_one, review_batch, score
+from atomica.litreview import llm_reviewer, build_prompt, MODEL
 
 def _paper(trend, better=False):
     return {"axis": "x2", "region": "orderings with x2 in the low range", "n_explored": 100,
@@ -48,3 +49,32 @@ def test_score_accuracy_precision_recall():
     assert s["precision"] == 0.0 and s["recall"] == 0.0
     assert abs(s["base_rate_better"] - 0.5) < 1e-9
     assert s["n"] == 4
+
+class _FakeBlock:
+    def __init__(self, inp): self.type = "tool_use"; self.name = "predict_gap"; self.input = inp
+class _FakeResp:
+    def __init__(self, inp): self.content = [_FakeBlock(inp)]
+class _FakeMessages:
+    def __init__(self, inp): self._inp = inp; self.last_kwargs = None
+    def create(self, **kw): self.last_kwargs = kw; return _FakeResp(self._inp)
+class _FakeClient:
+    def __init__(self, inp): self.messages = _FakeMessages(inp)
+
+def test_llm_reviewer_extracts_prediction():
+    client = _FakeClient({"better_in_gap": True})
+    reviewer = llm_reviewer(client)
+    raw = reviewer({"axis": "x2", "region": "orderings with x2 in the low range", "n_explored": 100,
+                    "best_config": [0, 1, 2, 3, 4, 5], "best_energy": -44.0,
+                    "boundary_trend": [-1.0, -2.0, -3.0, -4.0], "gap_side": "high"})
+    assert raw == {"better_in_gap": True}
+    assert client.messages.last_kwargs["model"] == MODEL
+
+def test_build_prompt_mentions_region_and_trend_not_label():
+    paper = {"axis": "x2", "region": "orderings with x2 in the low range", "n_explored": 100,
+             "best_config": [0, 1, 2, 3, 4, 5], "best_energy": -44.0,
+             "boundary_trend": [-1.0, -2.0, -3.0, -4.0], "gap_side": "high", "better_in_gap": True}
+    txt = build_prompt(paper)
+    assert "x2" in txt and "-44" in txt and "boundary" in txt.lower()
+    # cheat-proof: prompt is independent of the hidden label
+    paper2 = dict(paper); paper2["better_in_gap"] = False
+    assert build_prompt(paper) == build_prompt(paper2)

@@ -64,3 +64,36 @@ def score(papers, reviews):
             "precision": tp / pred_pos if pred_pos else 0.0,
             "recall": tp / actual_pos if actual_pos else 0.0,
             "n": n, "base_rate_better": actual_pos / n if n else 0.0}
+
+MODEL = "claude-sonnet-5"
+
+def build_prompt(paper):
+    # cheat-proof: reads only observable summary fields — never better_in_gap.
+    gap = paper["gap_side"]
+    trend = ", ".join(f"{e:.3f}" for e in paper["boundary_trend"])
+    lines = [
+        "A study of Cu-Au orderings on a fixed 12-site lattice explored only part of the design space.",
+        f"Explored region: {paper['region']} ({paper['n_explored']} orderings).",
+        f"Best structure found in the study: config {paper['best_config']} at energy "
+        f"{paper['best_energy']:.3f} eV (lower energy = more stable).",
+        f"The unexplored region lies on the {gap} side of {paper['axis']}.",
+        "Reported best energy across sub-bands of the explored region, ordered FAR from the gap "
+        f"to NEAR the gap boundary: [{trend}].",
+        "Question: does the unexplored region likely contain a structure with LOWER energy than the "
+        "study's best? Reason about whether energy is still improving where the study stopped.",
+        "Call predict_gap with your prediction.",
+    ]
+    return "\n".join(lines)
+
+def llm_reviewer(client, model=MODEL):
+    def reviewer(view):
+        resp = client.messages.create(
+            model=model, max_tokens=512,
+            tools=[PREDICT_TOOL], tool_choice={"type": "tool", "name": "predict_gap"},
+            messages=[{"role": "user", "content": build_prompt(view)}],
+        )
+        for block in resp.content:
+            if getattr(block, "type", None) == "tool_use" and block.name == "predict_gap":
+                return block.input
+        raise ValueError("no predict_gap tool_use in response")
+    return reviewer
