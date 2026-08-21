@@ -116,3 +116,11 @@ def test_llm_critic_extracts_verdict():
 def test_build_prompt_mentions_target_and_candidates():
     txt = build_prompt(_claim("x1", -1, "x2", False, _trivial_sample()))
     assert "x1" in txt and "x2" in txt and "layer" in txt
+
+def test_build_prompt_is_independent_of_answer_fields():
+    base = _claim("x1", -1, "x2", False, _trivial_sample())
+    # same observable inputs (target, claim_sign, sample), different hidden answer fields:
+    other = dict(base); other["confounder_true"] = "layer"; other["label_is_true"] = True
+    assert build_prompt(base) == build_prompt(other)
+    # and the label value never appears as a token
+    assert "label_is_true" not in build_prompt(base)

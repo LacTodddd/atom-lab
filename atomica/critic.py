@@ -61,7 +61,9 @@ def random_critic(rng, p_confounded=1.0):
 def review_one(claim, critic):
     fallback = False
     try:
-        crit = validate_critique(critic(claim), claim["target"])
+        # cheat-proof: hand the critic only observable fields — never the label/true confounder
+        view = {"target": claim["target"], "claim_sign": claim["claim_sign"], "sample": claim["sample"]}
+        crit = validate_critique(critic(view), claim["target"])
     except ValueError:
         crit = {"verdict": "supported", "confounder": None}
         fallback = True
